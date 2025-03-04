@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Form, Input, Checkbox, Upload, Button, message, Card, Modal, Layout } from 'antd';
-import { UploadOutlined, DeleteOutlined, CameraOutlined } from '@ant-design/icons';
+import { Form, Input, Checkbox, Upload, Button, message, Card, Layout } from 'antd';
+import { UploadOutlined, DeleteOutlined, CameraOutlined, RotateLeftOutlined, RotateRightOutlined, ZoomInOutlined, ZoomOutOutlined, SwapOutlined } from '@ant-design/icons';
 import ReactCrop from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import 'antd/dist/reset.css';
+import ImageEditor from './ImageEditor';
 
 const { TextArea } = Input;
 const { Header, Content } = Layout;
@@ -12,26 +13,28 @@ const PhotoUpload = () => {
     const [form] = Form.useForm();
     const [selectedSizes, setSelectedSizes] = useState([]);
     const [fileList, setFileList] = useState({});
-    const [cropModalVisible, setCropModalVisible] = useState(false);
+    const [editModalVisible, setEditModalVisible] = useState(false);
     const [currentImage, setCurrentImage] = useState(null);
-    const [crop, setCrop] = useState({ unit: '%', width: 30, aspect: 1 });
+    const [rotation, setRotation] = useState(0);
+    const [scale, setScale] = useState(1);
+    const [crop, setCrop] = useState(null);
+    const [aspectRatio, setAspectRatio] = useState(null);
 
     // 照片尺寸配置
     const photoSizes = [
-        { label: '3寸', value: '3inch', ratio: 3.5 / 5 },
-        { label: '4寸', value: '4inch', ratio: 4 / 6 },
-        { label: '5寸', value: '5inch', ratio: 5 / 7 },
-        { label: '6寸', value: '6inch', ratio: 6 / 8 },
-        { label: '7寸', value: '7inch', ratio: 7 / 9 },
-        { label: '8寸', value: '8inch', ratio: 8 / 10 },
-        { label: '10寸', value: '10inch', ratio: 10 / 12 },
-        { label: 'A4', value: 'A4', ratio: 210 / 297 }
+        { label: '3寸', value: '3inch', ratio: 3/2 },
+        { label: '4寸', value: '4inch', ratio: 3/4 },
+        { label: '5寸', value: '5inch', ratio: 3/2 },
+        { label: '6寸', value: '6inch', ratio: 3/2 },
+        { label: '7寸', value: '7inch', ratio: 10/7 },
+        { label: '8寸', value: '8inch', ratio: 4/3 },
+        { label: '10寸', value: '10inch', ratio: 10/8 },
+        { label: 'A4', value: 'A4', ratio: 210/297 }
     ];
 
     // 处理尺寸选择变化
     const handleSizeChange = (checkedValues) => {
         setSelectedSizes(checkedValues);
-        // 初始化新选择尺寸的文件列表
         const newFileList = { ...fileList };
         checkedValues.forEach(size => {
             if (!newFileList[size]) {
@@ -41,53 +44,271 @@ const PhotoUpload = () => {
         setFileList(newFileList);
     };
 
+    // 获取默认裁剪区域
+    const getDefaultCrop = (imageWidth, imageHeight, ratio) => {
+        const aspectRatio = ratio;
+        let cropWidth = imageWidth;
+        let cropHeight = cropWidth / aspectRatio;
+
+        if (cropHeight > imageHeight) {
+            cropHeight = imageHeight;
+            cropWidth = cropHeight * aspectRatio;
+        }
+
+        const x = (imageWidth - cropWidth) / 2;
+        const y = (imageHeight - cropHeight) / 2;
+
+        return {
+            unit: 'px',
+            x,
+            y,
+            width: cropWidth,
+            height: cropHeight
+        };
+    };
+
+    // 生成裁剪后的图片
+    const getCroppedImg = (imageSrc, crop, rotation = 0, scale = 1) => {
+        return new Promise((resolve) => {
+            const image = new Image();
+            image.src = imageSrc;
+            image.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+
+                // 计算画布大小
+                const scaleX = image.naturalWidth / image.width;
+                const scaleY = image.naturalHeight / image.height;
+
+                // 设置画布尺寸为裁剪尺寸
+                canvas.width = crop.width;
+                canvas.height = crop.height;
+
+                // 保存上下文状态
+                ctx.save();
+
+                // 将画布原点移到中心
+                ctx.translate(canvas.width/2, canvas.height/2);
+                // 应用旋转
+                ctx.rotate((rotation * Math.PI) / 180);
+                // 应用缩放
+                ctx.scale(scale, scale);
+                // 移回原点
+                ctx.translate(-canvas.width/2, -canvas.height/2);
+
+                // 绘制裁剪后的图片
+                ctx.drawImage(
+                    image,
+                    crop.x * scaleX,
+                    crop.y * scaleY,
+                    crop.width * scaleX,
+                    crop.height * scaleY,
+                    0,
+                    0,
+                    crop.width,
+                    crop.height
+                );
+
+                // 恢复上下文状态
+                ctx.restore();
+
+                // 转换为 base64
+                canvas.toBlob((blob) => {
+                    resolve(URL.createObjectURL(blob));
+                }, 'image/jpeg');
+            };
+        });
+    };
+
+    // 检测图片方向并设置默认比例
+    const detectImageOrientation = (imageWidth, imageHeight) => {
+        const isLandscape = imageWidth > imageHeight;
+        return isLandscape ? 3/2 : 2/3;
+    };
+
+    // 切换横竖比例
+    const toggleAspectRatio = () => {
+        if (aspectRatio === 3/2) {
+            setAspectRatio(2/3);
+        } else if (aspectRatio === 2/3) {
+            setAspectRatio(3/2);
+        }
+    };
+
+    // 处理单个图片的加载和处理
+    const processImage = async (file, size) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = async () => {
+                const img = new Image();
+                img.onload = async () => {
+                    const ratio = photoSizes.find(s => s.value === size)?.ratio || 1;
+                    const defaultCrop = getDefaultCrop(img.width, img.height, ratio);
+                    
+                    // 生成裁剪后的缩略图
+                    const croppedImageUrl = await getCroppedImg(reader.result, defaultCrop);
+                    
+                    resolve({
+                        uid: `-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                        name: file.name,
+                        status: 'done',
+                        url: reader.result, // 原图 URL
+                        thumbUrl: croppedImageUrl, // 裁剪后的缩略图 URL
+                        originalFile: file,
+                        crop: defaultCrop,
+                        rotation: 0,
+                        scale: 1
+                    });
+                };
+                img.onerror = reject;
+                img.src = reader.result;
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    };
+
+    // 处理文件删除
+    const handleRemove = (file, size) => {
+        const newFileList = { ...fileList };
+        newFileList[size] = newFileList[size].filter(item => item.uid !== file.uid);
+        setFileList(newFileList);
+        // 清理创建的 Object URL
+        if (file.thumbUrl) {
+            URL.revokeObjectURL(file.thumbUrl);
+        }
+        return true;
+    };
+
     // 处理文件上传
     const handleUpload = (size) => ({
-        beforeUpload: (file) => {
+        beforeUpload: (file, fileList) => {
             const isImage = file.type.startsWith('image/');
             if (!isImage) {
-                message.error('只能上传图片文件！');
+                message.error(`${file.name} 不是图片文件！`);
                 return false;
             }
             const isLt50M = file.size / 1024 / 1024 < 50;
             if (!isLt50M) {
-                message.error('图片必须小于 50MB！');
+                message.error(`${file.name} 大小超过 50MB！`);
                 return false;
             }
-            
-            // 打开裁剪模态框
-            const reader = new FileReader();
-            reader.onload = () => {
-                setCurrentImage({
-                    src: reader.result,
-                    file,
-                    size
-                });
-                setCropModalVisible(true);
-            };
-            reader.readAsDataURL(file);
-            return false; // 阻止自动上传
+            return true;
+        },
+        customRequest: async ({ file, onSuccess, onError }) => {
+            try {
+                const processedFile = await processImage(file, size);
+                const newFileList = { ...fileList };
+                if (!newFileList[size]) {
+                    newFileList[size] = [];
+                }
+                
+                if (newFileList[size].length >= 1000) {
+                    message.error('已达到1000张上限！');
+                    onError(new Error('已达到上传上限'));
+                    return;
+                }
+
+                newFileList[size].push(processedFile);
+                setFileList(newFileList);
+                onSuccess();
+            } catch (error) {
+                message.error(`处理图片 ${file.name} 失败`);
+                onError(error);
+            }
+        },
+        multiple: true,
+        maxCount: 1000,
+        accept: 'image/*',
+        showUploadList: {
+            showPreviewIcon: true,
+            showRemoveIcon: true,
+            showDownloadIcon: false
         }
     });
 
-    // 处理裁剪完成
-    const handleCropComplete = () => {
-        // 这里应该处理裁剪后的图片
-        if (currentImage) {
-            const newFileList = { ...fileList };
-            if (!newFileList[currentImage.size]) {
-                newFileList[currentImage.size] = [];
-            }
-            newFileList[currentImage.size].push({
-                uid: `-${Date.now()}`,
-                name: currentImage.file.name,
-                status: 'done',
-                url: currentImage.src
+    // 修改打开编辑模态框的函数
+    const handleEdit = (file, size) => {
+        const img = new Image();
+        img.onload = () => {
+            const defaultRatio = detectImageOrientation(img.width, img.height);
+            setAspectRatio(defaultRatio);
+            
+            setCurrentImage({
+                ...file,
+                size,
+                width: img.width,
+                height: img.height
             });
-            setFileList(newFileList);
+            
+            // 如果已有裁剪数据则使用，否则生成默认裁剪
+            if (file.crop) {
+                setCrop(file.crop);
+            } else {
+                const defaultCrop = getDefaultCrop(img.width, img.height, defaultRatio);
+                setCrop(defaultCrop);
+            }
+            
+            setRotation(file.rotation || 0);
+            setScale(file.scale || 1);
+            setEditModalVisible(true);
+        };
+        img.src = file.url;
+    };
+
+    // 处理图片旋转
+    const handleRotate = (direction) => {
+        setRotation(prev => prev + (direction === 'left' ? -90 : 90));
+    };
+
+    // 处理图片缩放
+    const handleZoom = (direction) => {
+        setScale(prev => direction === 'in' ? prev * 1.1 : prev / 1.1);
+    };
+
+    // 保存编辑
+    const handleSaveEdit = async () => {
+        if (currentImage) {
+            try {
+                // 生成新的裁剪后的缩略图
+                const croppedImageUrl = await getCroppedImg(
+                    currentImage.url,
+                    crop,
+                    rotation,
+                    scale
+                );
+
+                const newFileList = { ...fileList };
+                const fileIndex = newFileList[currentImage.size].findIndex(
+                    f => f.uid === currentImage.uid
+                );
+                
+                if (fileIndex !== -1) {
+                    // 清理旧的 Object URL
+                    if (newFileList[currentImage.size][fileIndex].thumbUrl) {
+                        URL.revokeObjectURL(newFileList[currentImage.size][fileIndex].thumbUrl);
+                    }
+                    
+                    newFileList[currentImage.size][fileIndex] = {
+                        ...newFileList[currentImage.size][fileIndex],
+                        thumbUrl: croppedImageUrl,
+                        crop,
+                        rotation,
+                        scale
+                    };
+                    setFileList(newFileList);
+                }
+                
+                message.success('编辑已保存');
+            } catch (error) {
+                message.error('保存编辑失败');
+            }
         }
-        setCropModalVisible(false);
+        setEditModalVisible(false);
         setCurrentImage(null);
+        setCrop(null);
+        setRotation(0);
+        setScale(1);
     };
 
     // 处理表单提交
@@ -226,31 +447,30 @@ const PhotoUpload = () => {
                         </Form.Item>
 
                         {selectedSizes.map(size => (
-                            <Form.Item
-                                key={size}
-                                style={formItemStyle}
-                            >
+                            <Form.Item key={size} style={formItemStyle}>
                                 <Card 
                                     title={`${photoSizes.find(s => s.value === size)?.label} 照片上传`}
-                                    style={{ 
-                                        borderRadius: '8px',
-                                        boxShadow: '0 1px 2px rgba(0,0,0,0.06)'
-                                    }}
-                                    headStyle={{
-                                        background: '#fafafa',
-                                        borderTopLeftRadius: '8px',
-                                        borderTopRightRadius: '8px'
-                                    }}
+                                    style={{ borderRadius: '8px' }}
                                 >
                                     <Upload
                                         listType="picture-card"
                                         fileList={fileList[size] || []}
                                         {...handleUpload(size)}
+                                        onPreview={(file) => handleEdit(file, size)}
+                                        onRemove={(file) => handleRemove(file, size)}
+                                        multiple={true}
+                                        directory={false}
                                     >
                                         {(fileList[size]?.length || 0) >= 1000 ? null : (
                                             <div>
                                                 <UploadOutlined style={{ fontSize: '24px' }} />
-                                                <div style={{ marginTop: 8 }}>上传</div>
+                                                <div style={{ marginTop: 8 }}>
+                                                    点击或拖拽上传
+                                                    <br />
+                                                    <small style={{ color: '#999' }}>
+                                                        支持多选或拖拽多个文件
+                                                    </small>
+                                                </div>
                                             </div>
                                         )}
                                     </Upload>
@@ -260,8 +480,7 @@ const PhotoUpload = () => {
                                         background: '#f5f5f5',
                                         borderRadius: '4px',
                                         display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center'
+                                        justifyContent: 'space-between'
                                     }}>
                                         <span>已上传: {fileList[size]?.length || 0} 张</span>
                                         <span>最多可上传: 1000 张</span>
@@ -301,25 +520,20 @@ const PhotoUpload = () => {
                 </div>
             </Content>
 
-            <Modal
-                title="图片裁剪"
-                open={cropModalVisible}
-                onOk={handleCropComplete}
-                onCancel={() => setCropModalVisible(false)}
-                width={800}
-                style={{ top: 20 }}
-                bodyStyle={{ maxHeight: 'calc(100vh - 200px)', overflow: 'auto' }}
-            >
-                {currentImage && (
-                    <ReactCrop
-                        crop={crop}
-                        onChange={c => setCrop(c)}
-                        aspect={photoSizes.find(s => s.value === currentImage.size)?.ratio}
-                    >
-                        <img src={currentImage.src} alt="裁剪预览" style={{ maxWidth: '100%' }} />
-                    </ReactCrop>
-                )}
-            </Modal>
+            <ImageEditor
+                visible={editModalVisible}
+                image={currentImage}
+                crop={crop}
+                rotation={rotation}
+                scale={scale}
+                aspectRatio={aspectRatio}
+                onClose={() => setEditModalVisible(false)}
+                onSave={handleSaveEdit}
+                onCropChange={setCrop}
+                onRotate={handleRotate}
+                onZoom={handleZoom}
+                onAspectRatioToggle={toggleAspectRatio}
+            />
         </Layout>
     );
 };
