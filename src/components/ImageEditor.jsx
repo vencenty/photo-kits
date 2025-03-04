@@ -1,23 +1,106 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Modal, Button } from 'antd';
 import { RotateLeftOutlined, RotateRightOutlined, ZoomInOutlined, ZoomOutOutlined, SwapOutlined } from '@ant-design/icons';
-import ReactCrop from 'react-image-crop';
-import 'react-image-crop/dist/ReactCrop.css';
+import Cropper from 'cropperjs';
+//import 'cropperjs/dist/cropper.css';
 
 const ImageEditor = ({
     visible,
     image,
-    crop,
-    rotation,
-    scale,
     aspectRatio,
     onClose,
     onSave,
-    onCropChange,
-    onRotate,
-    onZoom,
     onAspectRatioToggle
 }) => {
+    const cropperRef = useRef(null);
+    const imageRef = useRef(null);
+
+    useEffect(() => {
+        if (visible && imageRef.current) {
+            // 销毁之前的实例
+            if (cropperRef.current) {
+                cropperRef.current.destroy();
+            }
+
+            // 创建新的 Cropper 实例
+            cropperRef.current = new Cropper(imageRef.current, {
+                aspectRatio: aspectRatio,
+                viewMode: 2, // 限制裁切框不超出图片的范围
+                dragMode: 'move',
+                autoCropArea: 0.98, // 自动裁切区域为图片的98%
+                restore: false,
+                modal: true,
+                guides: true,
+                highlight: true,
+                cropBoxMovable: true,
+                cropBoxResizable: true,
+                toggleDragModeOnDblclick: false,
+                responsive: true,
+                checkOrientation: true,
+                background: true,
+                ready: function() {
+                    // 当裁切器准备好后，设置容器大小以适应屏幕
+                    const containerData = cropperRef.current.getContainerData();
+                    const viewportWidth = window.innerWidth * 0.8; // 使用80%的屏幕宽度
+                    const viewportHeight = window.innerHeight * 0.7; // 使用70%的屏幕高度
+                    
+                    // 计算缩放比例
+                    const scaleX = viewportWidth / containerData.width;
+                    const scaleY = viewportHeight / containerData.height;
+                    const scale = Math.min(scaleX, scaleY);
+                    
+                    // 调整画布大小
+                    if (scale < 1) {
+                        cropperRef.current.zoomTo(scale);
+                    }
+
+                    // 确保裁切框适应图片方向
+                    cropperRef.current.crop();
+                }
+            });
+        }
+
+        return () => {
+            if (cropperRef.current) {
+                cropperRef.current.destroy();
+                cropperRef.current = null;
+            }
+        };
+    }, [visible, aspectRatio]);
+
+    // 处理旋转
+    const handleRotate = (direction) => {
+        if (cropperRef.current) {
+            cropperRef.current.rotate(direction === 'left' ? -90 : 90);
+        }
+    };
+
+    // 处理缩放
+    const handleZoom = (direction) => {
+        if (cropperRef.current) {
+            const value = direction === 'in' ? 0.1 : -0.1;
+            cropperRef.current.zoom(value);
+        }
+    };
+
+    // 处理保存
+    const handleSave = () => {
+        if (cropperRef.current) {
+            const canvas = cropperRef.current.getCroppedCanvas({
+                maxWidth: 4096,
+                maxHeight: 4096,
+                fillColor: '#fff',
+                imageSmoothingEnabled: true,
+                imageSmoothingQuality: 'high',
+            });
+            
+            canvas.toBlob((blob) => {
+                const croppedImageUrl = URL.createObjectURL(blob);
+                onSave(croppedImageUrl);
+            }, 'image/jpeg', 0.9);
+        }
+    };
+
     // 获取当前比例的显示文本
     const getRatioText = () => {
         if (!image) return '';
@@ -43,31 +126,35 @@ const ImageEditor = ({
         <Modal
             title="图片编辑"
             open={visible}
-            onOk={onSave}
+            onOk={handleSave}
             onCancel={onClose}
-            width={800}
+            width="90vw"
             style={{ top: 20 }}
-            bodyStyle={{ maxHeight: 'calc(100vh - 200px)', overflow: 'auto' }}
+            bodyStyle={{ 
+                maxHeight: 'calc(90vh - 100px)',
+                overflow: 'hidden',
+                padding: '20px 0'
+            }}
         >
             <div style={{ marginBottom: 16, textAlign: 'center' }}>
                 <Button.Group size="large">
                     <Button 
-                        onClick={() => onRotate('left')} 
+                        onClick={() => handleRotate('left')} 
                         icon={<RotateLeftOutlined style={{ fontSize: '24px' }} />}
                         style={{ padding: '8px 16px' }}
                     />
                     <Button 
-                        onClick={() => onRotate('right')} 
+                        onClick={() => handleRotate('right')} 
                         icon={<RotateRightOutlined style={{ fontSize: '24px' }} />}
                         style={{ padding: '8px 16px' }}
                     />
                     <Button 
-                        onClick={() => onZoom('in')} 
+                        onClick={() => handleZoom('in')} 
                         icon={<ZoomInOutlined style={{ fontSize: '24px' }} />}
                         style={{ padding: '8px 16px' }}
                     />
                     <Button 
-                        onClick={() => onZoom('out')} 
+                        onClick={() => handleZoom('out')} 
                         icon={<ZoomOutOutlined style={{ fontSize: '24px' }} />}
                         style={{ padding: '8px 16px' }}
                     />
@@ -86,26 +173,26 @@ const ImageEditor = ({
                     {getRatioText()}
                 </div>
             </div>
-            {image && (
-                <div style={{ textAlign: 'center' }}>
-                    <ReactCrop
-                        crop={crop}
-                        onChange={onCropChange}
-                        aspect={aspectRatio}
-                        minWidth={100}
-                        minHeight={100}
-                    >
-                        <img
-                            src={image.url}
-                            alt="编辑预览"
-                            style={{
-                                maxWidth: '100%',
-                                transform: `rotate(${rotation}deg) scale(${scale})`
-                            }}
-                        />
-                    </ReactCrop>
-                </div>
-            )}
+            <div style={{ 
+                maxWidth: '100%',
+                height: 'calc(90vh - 200px)',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center'
+            }}>
+                {image && (
+                    <img
+                        ref={imageRef}
+                        src={image.url}
+                        alt="编辑预览"
+                        style={{ 
+                            maxWidth: '100%',
+                            maxHeight: '100%',
+                            display: 'block'
+                        }}
+                    />
+                )}
+            </div>
         </Modal>
     );
 };
