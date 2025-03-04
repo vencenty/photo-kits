@@ -46,24 +46,48 @@ const PhotoUpload = () => {
 
     // 获取默认裁剪区域
     const getDefaultCrop = (imageWidth, imageHeight, ratio) => {
-        const aspectRatio = ratio;
-        let cropWidth = imageWidth;
-        let cropHeight = cropWidth / aspectRatio;
+        // 计算图片的显示尺寸（考虑最大宽度限制）
+        const maxDisplayWidth = 800; // Modal 的宽度
+        const displayScale = imageWidth > maxDisplayWidth ? maxDisplayWidth / imageWidth : 1;
+        const displayWidth = imageWidth * displayScale;
+        const displayHeight = imageHeight * displayScale;
 
-        if (cropHeight > imageHeight) {
-            cropHeight = imageHeight;
-            cropWidth = cropHeight * aspectRatio;
+        // 计算最大可能的裁剪区域
+        let cropWidth, cropHeight;
+
+        // 根据比例计算最佳裁剪尺寸
+        if (ratio > 1) { // 横向裁剪
+            // 首先尝试使用完整宽度
+            cropWidth = displayWidth;
+            cropHeight = cropWidth / ratio;
+
+            // 如果高度超出，则从高度计算
+            if (cropHeight > displayHeight) {
+                cropHeight = displayHeight;
+                cropWidth = cropHeight * ratio;
+            }
+        } else { // 竖向裁剪
+            // 首先尝试使用完整高度
+            cropHeight = displayHeight;
+            cropWidth = cropHeight * ratio;
+
+            // 如果宽度超出，则从宽度计算
+            if (cropWidth > displayWidth) {
+                cropWidth = displayWidth;
+                cropHeight = cropWidth / ratio;
+            }
         }
 
-        const x = (imageWidth - cropWidth) / 2;
-        const y = (imageHeight - cropHeight) / 2;
+        // 确保裁剪框居中且不超出边界
+        const x = Math.max(0, (displayWidth - cropWidth) / 2);
+        const y = Math.max(0, (displayHeight - cropHeight) / 2);
 
         return {
             unit: 'px',
-            x,
-            y,
-            width: cropWidth,
-            height: cropHeight
+            x: Math.round(x),
+            y: Math.round(y),
+            width: Math.round(cropWidth),
+            height: Math.round(cropHeight)
         };
     };
 
@@ -120,18 +144,40 @@ const PhotoUpload = () => {
         });
     };
 
+    // 获取尺寸对应的比例配置
+    const getSizeRatios = (sizeValue) => {
+        const sizeConfig = {
+            '3inch': { landscape: 3/2, portrait: 2/3 },
+            '4inch': { landscape: 4/3, portrait: 3/4 },
+            '5inch': { landscape: 3/2, portrait: 2/3 },
+            '6inch': { landscape: 3/2, portrait: 2/3 },
+            '7inch': { landscape: 10/7, portrait: 7/10 },
+            '8inch': { landscape: 4/3, portrait: 3/4 },
+            '10inch': { landscape: 10/8, portrait: 8/10 },
+            'A4': { landscape: 297/210, portrait: 210/297 }
+        };
+        return sizeConfig[sizeValue] || { landscape: 3/2, portrait: 2/3 };
+    };
+
     // 检测图片方向并设置默认比例
-    const detectImageOrientation = (imageWidth, imageHeight) => {
+    const detectImageOrientation = (imageWidth, imageHeight, size) => {
         const isLandscape = imageWidth > imageHeight;
-        return isLandscape ? 3/2 : 2/3;
+        const ratios = getSizeRatios(size);
+        return isLandscape ? ratios.landscape : ratios.portrait;
     };
 
     // 切换横竖比例
     const toggleAspectRatio = () => {
-        if (aspectRatio === 3/2) {
-            setAspectRatio(2/3);
-        } else if (aspectRatio === 2/3) {
-            setAspectRatio(3/2);
+        if (!currentImage) return;
+        
+        const ratios = getSizeRatios(currentImage.size);
+        const newRatio = aspectRatio === ratios.landscape ? ratios.portrait : ratios.landscape;
+        setAspectRatio(newRatio);
+        
+        // 重新计算裁剪框
+        if (currentImage) {
+            const newCrop = getDefaultCrop(currentImage.width, currentImage.height, newRatio);
+            setCrop(newCrop);
         }
     };
 
@@ -231,21 +277,35 @@ const PhotoUpload = () => {
     const handleEdit = (file, size) => {
         const img = new Image();
         img.onload = () => {
-            const defaultRatio = detectImageOrientation(img.width, img.height);
+            const defaultRatio = detectImageOrientation(img.width, img.height, size);
             setAspectRatio(defaultRatio);
+            
+            // 计算图片的显示尺寸
+            const maxDisplayWidth = 800;
+            const displayScale = img.width > maxDisplayWidth ? maxDisplayWidth / img.width : 1;
             
             setCurrentImage({
                 ...file,
                 size,
-                width: img.width,
-                height: img.height
+                width: img.width * displayScale,  // 使用显示尺寸
+                height: img.height * displayScale, // 使用显示尺寸
+                naturalWidth: img.width,          // 保存原始尺寸
+                naturalHeight: img.height,        // 保存原始尺寸
+                isLandscape: img.width > img.height
             });
             
             // 如果已有裁剪数据则使用，否则生成默认裁剪
             if (file.crop) {
-                setCrop(file.crop);
+                // 如果有已存在的裁剪数据，需要根据显示比例调整
+                setCrop({
+                    ...file.crop,
+                    x: file.crop.x * displayScale,
+                    y: file.crop.y * displayScale,
+                    width: file.crop.width * displayScale,
+                    height: file.crop.height * displayScale
+                });
             } else {
-                const defaultCrop = getDefaultCrop(img.width, img.height, defaultRatio);
+                const defaultCrop = getDefaultCrop(img.width * displayScale, img.height * displayScale, defaultRatio);
                 setCrop(defaultCrop);
             }
             
@@ -270,10 +330,20 @@ const PhotoUpload = () => {
     const handleSaveEdit = async () => {
         if (currentImage) {
             try {
+                // 将裁剪数据转换回原始尺寸的比例
+                const scale = currentImage.naturalWidth / currentImage.width;
+                const originalSizeCrop = {
+                    ...crop,
+                    x: crop.x * scale,
+                    y: crop.y * scale,
+                    width: crop.width * scale,
+                    height: crop.height * scale
+                };
+
                 // 生成新的裁剪后的缩略图
                 const croppedImageUrl = await getCroppedImg(
                     currentImage.url,
-                    crop,
+                    originalSizeCrop,
                     rotation,
                     scale
                 );
@@ -292,7 +362,7 @@ const PhotoUpload = () => {
                     newFileList[currentImage.size][fileIndex] = {
                         ...newFileList[currentImage.size][fileIndex],
                         thumbUrl: croppedImageUrl,
-                        crop,
+                        crop: originalSizeCrop,
                         rotation,
                         scale
                     };

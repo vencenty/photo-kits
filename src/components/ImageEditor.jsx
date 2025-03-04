@@ -18,6 +18,27 @@ const ImageEditor = ({
     onZoom,
     onAspectRatioToggle
 }) => {
+    // 获取当前比例的显示文本
+    const getRatioText = () => {
+        if (!image) return '';
+        
+        const ratioMap = {
+            '3inch': { landscape: '3:2', portrait: '2:3' },
+            '4inch': { landscape: '4:3', portrait: '3:4' },
+            '5inch': { landscape: '3:2', portrait: '2:3' },
+            '6inch': { landscape: '3:2', portrait: '2:3' },
+            '7inch': { landscape: '10:7', portrait: '7:10' },
+            '8inch': { landscape: '4:3', portrait: '3:4' },
+            '10inch': { landscape: '10:8', portrait: '8:10' },
+            'A4': { landscape: '297:210', portrait: '210:297' }
+        };
+
+        const sizeRatios = ratioMap[image.size] || { landscape: '3:2', portrait: '2:3' };
+        const isLandscapeRatio = aspectRatio > 1;
+        
+        return `当前比例: ${isLandscapeRatio ? sizeRatios.landscape : sizeRatios.portrait} (${isLandscapeRatio ? '横向' : '竖向'})`;
+    };
+
     return (
         <Modal
             title="图片编辑"
@@ -54,7 +75,7 @@ const ImageEditor = ({
                         onClick={onAspectRatioToggle} 
                         icon={<SwapOutlined style={{ fontSize: '24px' }} />}
                         style={{ padding: '8px 16px' }}
-                        title={aspectRatio === 3/2 ? "切换到竖向(2:3)" : "切换到横向(3:2)"}
+                        title="切换横竖比例"
                     />
                 </Button.Group>
                 <div style={{ 
@@ -62,7 +83,7 @@ const ImageEditor = ({
                     fontSize: '12px', 
                     color: '#666' 
                 }}>
-                    当前比例: {aspectRatio === 3/2 ? "3:2 (横向)" : "2:3 (竖向)"}
+                    {getRatioText()}
                 </div>
             </div>
             {image && (
