@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Form, Input, Checkbox, Upload, Button, message, Card, Layout } from 'antd';
-import { UploadOutlined, DeleteOutlined, CameraOutlined, RotateLeftOutlined, RotateRightOutlined, ZoomInOutlined, ZoomOutOutlined, SwapOutlined } from '@ant-design/icons';
+import { UploadOutlined, DeleteOutlined, CameraOutlined, RotateLeftOutlined, RotateRightOutlined, ZoomInOutlined, ZoomOutOutlined, SwapOutlined, EyeOutlined } from '@ant-design/icons';
 import 'react-image-crop/dist/ReactCrop.css';
 import 'antd/dist/reset.css';
 import ImgCrop from 'antd-img-crop';
@@ -15,6 +15,7 @@ const PhotoUpload = () => {
     const [editModalVisible, setEditModalVisible] = useState(false);
     const [currentImage, setCurrentImage] = useState(null);
     const [aspectRatio, setAspectRatio] = useState(null);
+    const [cropAspects, setCropAspects] = useState({});
 
     // 照片尺寸配置
     const photoSizes = [
@@ -155,7 +156,9 @@ const PhotoUpload = () => {
         showUploadList: {
             showPreviewIcon: true,
             showRemoveIcon: true,
-            showDownloadIcon: false
+            showDownloadIcon: false,
+            previewIcon: <EyeOutlined />,
+            removeIcon: <DeleteOutlined />
         }
     });
 
@@ -176,10 +179,54 @@ const PhotoUpload = () => {
     };
 
     // 处理图片编辑后的变化
-    const handleChange = (size, { fileList: newFileList }) => {
+    const handleChange = (size, { file, fileList: newFileList }) => {
+        // 过滤掉重复的文件
+        const uniqueFileList = newFileList.reduce((acc, current) => {
+            // 检查是否已经存在同名文件
+            const exists = acc.find(item => 
+                item.name === current.name && 
+                item.uid !== current.uid
+            );
+            
+            // 如果存在同名文件，保留最新的（通常是裁切后的）
+            if (exists) {
+                return acc.map(item => 
+                    item.name === current.name ? current : item
+                );
+            }
+            
+            return [...acc, current];
+        }, []);
+
         const updatedFileList = { ...fileList };
-        updatedFileList[size] = newFileList;
+        updatedFileList[size] = uniqueFileList;
         setFileList(updatedFileList);
+    };
+
+    // 在裁切前检测图片方向并设置比例
+    const handleBeforeCrop = (file, size) => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const img = new Image();
+                img.onload = () => {
+                    const isLandscape = img.width > img.height;
+                    const sizeConfig = photoSizes.find(s => s.value === size);
+                    if (sizeConfig) {
+                        // 根据图片方向设置对应的比例
+                        const ratio = isLandscape ? sizeConfig.ratio : 1 / sizeConfig.ratio;
+                        // 更新裁切比例
+                        setCropAspects(prev => ({
+                            ...prev,
+                            [`${size}-${file.uid}`]: ratio
+                        }));
+                    }
+                    resolve(true);
+                };
+                img.src = reader.result;
+            };
+            reader.readAsDataURL(file);
+        });
     };
 
     // 处理表单提交
@@ -325,12 +372,14 @@ const PhotoUpload = () => {
                                 >
                                     <ImgCrop
                                         rotationSlider
-                                        aspect={photoSizes.find(s => s.value === size)?.ratio}
+                                        aspect={cropAspects[`${size}-${fileList[size]?.[0]?.uid}`] || 
+                                               photoSizes.find(s => s.value === size)?.ratio}
                                         modalTitle="编辑图片"
                                         modalWidth={800}
                                         quality={1}
-                                        modalOk="确你乃定"
+                                        modalOk="确定"
                                         modalCancel="取消"
+                                        beforeCrop={(file) => handleBeforeCrop(file, size)}
                                     >
                                         <Upload
                                             listType="picture-card"
