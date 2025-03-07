@@ -24,7 +24,9 @@ dist-ssr
 *.sw?
 
 # 忽略COS配置文件（包含敏感信息）
-src/config/*
+src/config/cosConfig.js
+# 但不忽略模板文件
+!src/config/cosConfig.template.js
 
 # 其他已有的忽略规则
 .env
