@@ -4,6 +4,7 @@ import { UploadOutlined, DeleteOutlined, CameraOutlined, RotateLeftOutlined, Rot
 import 'react-image-crop/dist/ReactCrop.css';
 import 'antd/dist/reset.css';
 import ImgCrop from 'antd-img-crop';
+import { uploadToCOS } from '../utils/cosConfig';
 
 const { TextArea } = Input;
 const { Header, Content } = Layout;
@@ -12,10 +13,6 @@ const PhotoUpload = () => {
     const [form] = Form.useForm();
     const [selectedSizes, setSelectedSizes] = useState([]);
     const [fileList, setFileList] = useState({});
-    const [editModalVisible, setEditModalVisible] = useState(false);
-    const [currentImage, setCurrentImage] = useState(null);
-    const [aspectRatio, setAspectRatio] = useState(null);
-    const [cropAspects, setCropAspects] = useState({});
 
     // 照片尺寸配置
     const photoSizes = [
@@ -56,36 +53,14 @@ const PhotoUpload = () => {
         return sizeConfig[sizeValue] || { landscape: 3/2, portrait: 2/3 };
     };
 
-    // 检测图片方向并设置默认比例
-    const detectImageOrientation = (imageWidth, imageHeight, size) => {
-        const isLandscape = imageWidth > imageHeight;
-        const ratios = getSizeRatios(size);
-        return isLandscape ? ratios.landscape : ratios.portrait;
-    };
-
-    // 切换横竖比例
-    const toggleAspectRatio = () => {
-        if (!currentImage) return;
-        
-        const ratios = getSizeRatios(currentImage.size);
-        const newRatio = aspectRatio === ratios.landscape ? ratios.portrait : ratios.landscape;
-        setAspectRatio(newRatio);
-        
-        // 重新计算裁剪框
-        if (currentImage) {
-            const newCrop = getDefaultCrop(currentImage.width, currentImage.height, newRatio);
-            setCrop(newCrop);
-        }
-    };
-
     // 处理单个图片的加载和处理
-    const processImage = async (file, size) => {
+    const processImage = async (file, size, customUid = null) => {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = async () => {
                 try {
                     resolve({
-                        uid: `-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                        uid: customUid || `-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                         name: file.name,
                         status: 'done',
                         url: reader.result,
@@ -126,11 +101,30 @@ const PhotoUpload = () => {
                 message.error(`${file.name} 大小超过 50MB！`);
                 return false;
             }
+            
+            // 检查是否已经存在相同的文件 - 修改这里的检测逻辑
+            const existingFiles = fileList[size] || [];
+            const isDuplicate = existingFiles.some(item => 
+                item.name === file.name && 
+                item.status === 'done' // 只检查已经上传完成的文件
+            );
+            
+            if (isDuplicate) {
+                message.warning(`${file.name} 已经存在，请勿重复上传`);
+                return Upload.LIST_IGNORE; // 忽略这个文件
+            }
+            
             return true;
         },
-        customRequest: async ({ file, onSuccess, onError }) => {
+        customRequest: async ({ file, onSuccess, onError, onProgress }) => {
             try {
+                // 生成唯一的文件ID
+                const fileId = `-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                
+                // 先处理图片获取预览
                 const processedFile = await processImage(file, size);
+                processedFile.uid = fileId; // 确保使用同一个唯一ID
+                
                 const newFileList = { ...fileList };
                 if (!newFileList[size]) {
                     newFileList[size] = [];
@@ -142,9 +136,92 @@ const PhotoUpload = () => {
                     return;
                 }
 
-                newFileList[size].push(processedFile);
-                setFileList(newFileList);
-                onSuccess();
+                // 检查是否已经存在相同的文件
+                const isDuplicate = newFileList[size].some(item => 
+                    item.name === processedFile.name && 
+                    item.status === 'done'
+                );
+                
+                if (isDuplicate) {
+                    message.warning(`${file.name} 已经存在，请勿重复上传`);
+                    onError(new Error('文件已存在'));
+                    return;
+                }
+                
+                // 添加到本地预览列表 - 确保只添加一次
+                const existingIndex = newFileList[size].findIndex(item => item.uid === fileId);
+                if (existingIndex === -1) {
+                    processedFile.status = 'uploading';
+                    newFileList[size].push(processedFile);
+                    setFileList(newFileList);
+                }
+                
+                // 上传到COS
+                const key = `${form.getFieldValue('orderId')}/${size}/${file.name}`;
+                
+                uploadToCOS({
+                    file: file,
+                    key: key,
+                    onProgress: (progressData) => {
+                        // 更新上传进度
+                        const percent = progressData.percent * 100;
+                        onProgress({ percent });
+                        
+                        // 更新文件列表中的进度
+                        const updatedFileList = { ...fileList };
+                        const fileIndex = updatedFileList[size].findIndex(item => item.uid === fileId);
+                        if (fileIndex > -1) {
+                            updatedFileList[size][fileIndex].percent = percent;
+                            setFileList(updatedFileList);
+                        }
+                    },
+                    onSuccess: (data) => {
+                        // 更新文件状态和URL
+                        const updatedFileList = { ...fileList };
+                        const fileIndex = updatedFileList[size].findIndex(item => item.uid === fileId);
+                        if (fileIndex > -1) {
+                            updatedFileList[size][fileIndex].status = 'done';
+                            updatedFileList[size][fileIndex].url = data.Location;
+                            updatedFileList[size][fileIndex].cosUrl = data.Location;
+                            setFileList(updatedFileList);
+                            
+                            // 确保成功回调只传递正确的数据
+                            onSuccess({
+                                ...data,
+                                uid: fileId,
+                                name: file.name,
+                                status: 'done',
+                                url: data.Location
+                            });
+                        } else {
+                            // 如果找不到对应的文件，可能是状态已经被清除，重新添加
+                            const newFile = {
+                                uid: fileId,
+                                name: file.name,
+                                status: 'done',
+                                url: data.Location,
+                                cosUrl: data.Location,
+                                size: size
+                            };
+                            updatedFileList[size] = [...(updatedFileList[size] || []), newFile];
+                            setFileList(updatedFileList);
+                            onSuccess(newFile);
+                        }
+                    },
+                    onError: (err) => {
+                        message.error(`上传失败: ${file.name}`);
+                        
+                        // 更新文件状态为错误
+                        const updatedFileList = { ...fileList };
+                        const fileIndex = updatedFileList[size].findIndex(item => item.uid === fileId);
+                        if (fileIndex > -1) {
+                            updatedFileList[size][fileIndex].status = 'error';
+                            setFileList(updatedFileList);
+                        }
+                        
+                        onError(err);
+                    }
+                });
             } catch (error) {
                 message.error(`处理图片 ${file.name} 失败`);
                 onError(error);
@@ -178,64 +255,39 @@ const PhotoUpload = () => {
         imgWindow?.document.write(image.outerHTML);
     };
 
-    // 处理图片编辑后的变化
+    // 处理图片上传后的变化
     const handleChange = (size, { file, fileList: newFileList }) => {
-        // 过滤掉重复的文件
-        const uniqueFileList = newFileList.reduce((acc, current) => {
-            // 检查是否已经存在同名文件
-            const exists = acc.find(item => 
-                item.name === current.name && 
-                item.uid !== current.uid
-            );
-            
-            // 如果存在同名文件，保留最新的（通常是裁切后的）
-            if (exists) {
-                return acc.map(item => 
-                    item.name === current.name ? current : item
-                );
-            }
-            
-            return [...acc, current];
-        }, []);
-
-        const updatedFileList = { ...fileList };
-        updatedFileList[size] = uniqueFileList;
-        setFileList(updatedFileList);
-    };
-
-    // 在裁切前检测图片方向并设置比例
-    const handleBeforeCrop = (file, size) => {
-        return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-                const img = new Image();
-                img.onload = () => {
-                    const isLandscape = img.width > img.height;
-                    const sizeConfig = photoSizes.find(s => s.value === size);
-                    if (sizeConfig) {
-                        // 根据图片方向设置对应的比例
-                        const ratio = isLandscape ? sizeConfig.ratio : 1 / sizeConfig.ratio;
-                        // 更新裁切比例
-                        setCropAspects(prev => ({
-                            ...prev,
-                            [`${size}-${file.uid}`]: ratio
-                        }));
-                    }
-                    resolve(true);
-                };
-                img.src = reader.result;
-            };
-            reader.readAsDataURL(file);
-        });
+        // 如果是上传中或上传成功的状态，由 customRequest 处理，这里不需要更新状态
+        if (file.status === 'uploading' || file.status === 'done') {
+            return;
+        }
+        
+        // 如果是移除文件或上传失败，则更新状态
+        if (file.status === 'removed' || file.status === 'error') {
+            const updatedFileList = { ...fileList };
+            updatedFileList[size] = newFileList.filter(f => {
+                // 过滤掉重复的文件（基于uid）
+                const count = newFileList.filter(item => item.uid === f.uid).length;
+                return count === 1;
+            });
+            setFileList(updatedFileList);
+        }
     };
 
     // 处理表单提交
     const handleSubmit = (values) => {
+        // 构建符合要求的数据结构
         const formData = {
             orderId: values.orderId,
-            ...fileList,
             remark: values.remark
         };
+        
+        // 添加各尺寸的照片数据
+        selectedSizes.forEach(size => {
+            // 保存文件的COS URL
+            formData[size] = (fileList[size] || []).map(file => file.cosUrl || '');
+        });
+        
         console.log('提交的数据：', formData);
         // 这里添加实际的提交逻辑
     };
@@ -370,41 +422,30 @@ const PhotoUpload = () => {
                                     title={`${photoSizes.find(s => s.value === size)?.label} 照片上传`}
                                     style={{ borderRadius: '8px' }}
                                 >
-                                    <ImgCrop
-                                        rotationSlider
-                                        aspect={cropAspects[`${size}-${fileList[size]?.[0]?.uid}`] || 
-                                               photoSizes.find(s => s.value === size)?.ratio}
-                                        modalTitle="编辑图片"
-                                        modalWidth={800}
-                                        quality={1}
-                                        modalOk="确定"
-                                        modalCancel="取消"
-                                        beforeCrop={(file) => handleBeforeCrop(file, size)}
+                                    <Upload
+                                        listType="picture-card"
+                                        fileList={fileList[size] || []}
+                                        {...handleUpload(size)}
+                                        onPreview={(file) => onPreview(file, size)}
+                                        onChange={(info) => handleChange(size, info)}
+                                        onRemove={(file) => handleRemove(file, size)}
+                                        multiple={true}
+                                        directory={false}
+                                        customRequest={handleUpload(size).customRequest}
                                     >
-                                        <Upload
-                                            listType="picture-card"
-                                            fileList={fileList[size] || []}
-                                            {...handleUpload(size)}
-                                            onPreview={(file) => onPreview(file, size)}
-                                            onChange={(info) => handleChange(size, info)}
-                                            onRemove={(file) => handleRemove(file, size)}
-                                            multiple={true}
-                                            directory={false}
-                                        >
-                                            {(fileList[size]?.length || 0) >= 1000 ? null : (
-                                                <div>
-                                                    <UploadOutlined style={{ fontSize: '24px' }} />
-                                                    <div style={{ marginTop: 8 }}>
-                                                        点击或拖拽上传
-                                                        <br />
-                                                        <small style={{ color: '#999' }}>
-                                                            支持多选或拖拽多个文件
-                                                        </small>
-                                                    </div>
+                                        {(fileList[size]?.length || 0) >= 1000 ? null : (
+                                            <div>
+                                                <UploadOutlined style={{ fontSize: '24px' }} />
+                                                <div style={{ marginTop: 8 }}>
+                                                    点击或拖拽上传
+                                                    <br />
+                                                    <small style={{ color: '#999' }}>
+                                                        支持多选或拖拽多个文件
+                                                    </small>
                                                 </div>
-                                            )}
-                                        </Upload>
-                                    </ImgCrop>
+                                            </div>
+                                        )}
+                                    </Upload>
                                     <div style={{ 
                                         marginTop: 16,
                                         padding: '8px 16px',

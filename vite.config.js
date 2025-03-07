@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
+    allowedHosts: ['mac-photo-kits.vencenty.cn'], // 允许的主机
     host: '0.0.0.0'
   }
 }) 
