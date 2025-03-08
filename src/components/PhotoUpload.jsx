@@ -176,13 +176,16 @@ const PhotoUpload = () => {
                         }
                     },
                     onSuccess: (data) => {
+                        // 使用修正后的URL
+                        const imageUrl = data.correctUrl || `https://${data.Location}`;
+                        
                         // 更新文件状态和URL
                         const updatedFileList = { ...fileList };
                         const fileIndex = updatedFileList[size].findIndex(item => item.uid === fileId);
                         if (fileIndex > -1) {
                             updatedFileList[size][fileIndex].status = 'done';
-                            updatedFileList[size][fileIndex].url = data.Location;
-                            updatedFileList[size][fileIndex].cosUrl = data.Location;
+                            updatedFileList[size][fileIndex].url = imageUrl;
+                            updatedFileList[size][fileIndex].cosUrl = imageUrl;
                             setFileList(updatedFileList);
                             
                             // 确保成功回调只传递正确的数据
@@ -191,7 +194,7 @@ const PhotoUpload = () => {
                                 uid: fileId,
                                 name: file.name,
                                 status: 'done',
-                                url: data.Location
+                                url: imageUrl
                             });
                         } else {
                             // 如果找不到对应的文件，可能是状态已经被清除，重新添加
@@ -199,8 +202,8 @@ const PhotoUpload = () => {
                                 uid: fileId,
                                 name: file.name,
                                 status: 'done',
-                                url: data.Location,
-                                cosUrl: data.Location,
+                                url: imageUrl,
+                                cosUrl: imageUrl,
                                 size: size
                             };
                             updatedFileList[size] = [...(updatedFileList[size] || []), newFile];

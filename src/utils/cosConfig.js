@@ -37,6 +37,14 @@ const uploadToCOS = (options) => {
       }
     } else {
       console.log('上传成功', data);
+      
+      // 修正URL格式，确保使用正确的COS域名
+      // 正确的URL格式：https://{bucket}.cos.{region}.myqcloud.com/{key}
+      const correctUrl = `https://${cosConfig.Bucket}.cos.${cosConfig.Region}.myqcloud.com/${key}`;
+      
+      // 将修正后的URL添加到返回数据中
+      data.correctUrl = correctUrl;
+      
       if (onSuccess) {
         onSuccess(data);
       }
