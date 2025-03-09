@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Form, Input, Checkbox, Upload, Button, message, Card, Layout } from 'antd';
 import { UploadOutlined, DeleteOutlined, CameraOutlined, RotateLeftOutlined, RotateRightOutlined, ZoomInOutlined, ZoomOutOutlined, SwapOutlined, EyeOutlined } from '@ant-design/icons';
+import ReactCrop from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
-import 'antd/dist/reset.css';
 import ImgCrop from 'antd-img-crop';
 import { uploadToCOS } from '../utils/cosConfig';
 
