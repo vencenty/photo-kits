@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Form, Input, Checkbox, Upload, Button, message, Card, Layout } from 'antd';
-import { UploadOutlined, DeleteOutlined, CameraOutlined, RotateLeftOutlined, RotateRightOutlined, ZoomInOutlined, ZoomOutOutlined, SwapOutlined, EyeOutlined } from '@ant-design/icons';
+import React, { useState, useEffect } from 'react';
+import { Form, Input, Checkbox, Upload, Button, message, Card, Layout, Modal, Statistic } from 'antd';
+import { UploadOutlined, DeleteOutlined, CameraOutlined, RotateLeftOutlined, RotateRightOutlined, ZoomInOutlined, ZoomOutOutlined, SwapOutlined, EyeOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import ReactCrop from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import ImgCrop from 'antd-img-crop';
@@ -8,12 +8,15 @@ import { uploadToServer } from '../utils/uploadConfig';
 
 const { TextArea } = Input;
 const { Header, Content } = Layout;
+const { confirm } = Modal;
 
 const PhotoUpload = () => {
     const [form] = Form.useForm();
     const [selectedSizes, setSelectedSizes] = useState([]);
     const [fileList, setFileList] = useState({});
     const [orderIdEntered, setOrderIdEntered] = useState(false);
+    const [uploading, setUploading] = useState(false); // 是否有文件正在上传
+    const [totalPhotos, setTotalPhotos] = useState(0); // 所有尺寸的照片总数
 
     // 照片尺寸配置
     const photoSizes = [
@@ -26,6 +29,18 @@ const PhotoUpload = () => {
         { label: '10寸', value: '10inch', ratio: 10/8 },
         { label: 'A4', value: 'A4', ratio: 210/297 }
     ];
+
+    // 计算所有尺寸的照片总数
+    useEffect(() => {
+        let count = 0;
+        Object.values(fileList).forEach(files => {
+            if (Array.isArray(files)) {
+                // 只计算上传成功的照片
+                count += files.filter(file => file.status === 'done').length;
+            }
+        });
+        setTotalPhotos(count);
+    }, [fileList]);
 
     // 处理订单号变化
     const handleOrderIdChange = (e) => {
@@ -125,6 +140,9 @@ const PhotoUpload = () => {
         },
         customRequest: async ({ file, onSuccess, onError, onProgress }) => {
             try {
+                // 设置上传状态为true
+                setUploading(true);
+                
                 // 生成唯一的文件ID
                 const fileId = `-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                 
@@ -140,6 +158,7 @@ const PhotoUpload = () => {
                 if (newFileList[size].length >= 1000) {
                     message.error('已达到1000张上限！');
                     onError(new Error('已达到上传上限'));
+                    setUploading(false);
                     return;
                 }
 
@@ -152,6 +171,7 @@ const PhotoUpload = () => {
                 if (isDuplicate) {
                     message.warning(`${file.name} 已经存在，请勿重复上传`);
                     onError(new Error('文件已存在'));
+                    setUploading(false);
                     return;
                 }
                 
@@ -217,6 +237,15 @@ const PhotoUpload = () => {
                             setFileList(updatedFileList);
                             onSuccess(newFile);
                         }
+                        
+                        // 检查是否所有文件都上传完成
+                        const allDone = Object.values(updatedFileList).every(sizeFiles => 
+                            sizeFiles.every(file => file.status !== 'uploading')
+                        );
+                        
+                        if (allDone) {
+                            setUploading(false);
+                        }
                     },
                     onError: (err) => {
                         message.error(`上传失败: ${file.name}`);
@@ -230,11 +259,21 @@ const PhotoUpload = () => {
                         }
                         
                         onError(err);
+                        
+                        // 检查是否所有文件都处理完成（包括错误状态）
+                        const allProcessed = Object.values(updatedFileList).every(sizeFiles => 
+                            sizeFiles.every(file => file.status !== 'uploading')
+                        );
+                        
+                        if (allProcessed) {
+                            setUploading(false);
+                        }
                     }
                 });
             } catch (error) {
                 message.error(`处理图片 ${file.name} 失败`);
                 onError(error);
+                setUploading(false);
             }
         },
         multiple: true,
@@ -284,8 +323,22 @@ const PhotoUpload = () => {
         }
     };
 
-    // 处理表单提交
-    const handleSubmit = (values) => {
+    // 显示提交确认对话框
+    const showConfirmModal = (values) => {
+        confirm({
+            title: '确认提交',
+            icon: <ExclamationCircleOutlined />,
+            content: `您即将提交${totalPhotos}张照片，提交后将无法修改，是否确认提交？`,
+            okText: '确认提交',
+            cancelText: '取消',
+            onOk() {
+                submitData(values);
+            },
+        });
+    };
+
+    // 提交数据到服务器
+    const submitData = (values) => {
         try {
             // 构建符合要求的新数据结构
             const formData = {
@@ -298,7 +351,7 @@ const PhotoUpload = () => {
             selectedSizes.forEach(size => {
                 try {
                     const urls = (fileList[size] || [])
-                        .filter(file => file.cosUrl) // 确保只包含有URL的文件
+                        .filter(file => file.cosUrl && file.status === 'done') // 确保只包含有URL且上传成功的文件
                         .map(file => file.cosUrl);
                     
                     // 只添加有照片的尺寸
@@ -382,6 +435,18 @@ const PhotoUpload = () => {
             console.error('提交表单时发生错误:', error);
             message.error('提交表单时发生错误，请检查数据后重试');
         }
+    };
+
+    // 处理表单提交
+    const handleSubmit = (values) => {
+        // 检查是否有文件正在上传
+        if (uploading) {
+            message.warning('请等待所有照片上传完成后再提交');
+            return;
+        }
+        
+        // 显示确认对话框
+        showConfirmModal(values);
     };
 
     const layoutStyle = {
@@ -512,6 +577,27 @@ const PhotoUpload = () => {
                             </Checkbox.Group>
                         </Form.Item>
 
+                        {/* 照片总计数统计 */}
+                        <div style={{ 
+                            marginBottom: '24px', 
+                            padding: '16px', 
+                            background: '#f0f5ff', 
+                            borderRadius: '8px',
+                            border: '1px solid #d6e4ff'
+                        }}>
+                            <Statistic 
+                                title="已上传照片总数" 
+                                value={totalPhotos} 
+                                suffix="张" 
+                                valueStyle={{ color: '#1677ff' }}
+                            />
+                            {uploading && (
+                                <div style={{ marginTop: '8px', color: '#ff4d4f' }}>
+                                    有照片正在上传中，请等待上传完成...
+                                </div>
+                            )}
+                        </div>
+
                         {selectedSizes.map(size => (
                             <Form.Item key={size} style={formItemStyle}>
                                 <Card 
@@ -551,7 +637,7 @@ const PhotoUpload = () => {
                                         display: 'flex',
                                         justifyContent: 'space-between'
                                     }}>
-                                        <span>已上传: {fileList[size]?.length || 0} 张</span>
+                                        <span>已上传: {(fileList[size] || []).filter(file => file.status === 'done').length} 张</span>
                                         <span>最多可上传: 1000 张</span>
                                     </div>
                                 </Card>
@@ -581,8 +667,9 @@ const PhotoUpload = () => {
                                     borderRadius: '6px',
                                     fontSize: '16px'
                                 }}
+                                disabled={uploading || totalPhotos === 0}
                             >
-                                提交
+                                {uploading ? '正在上传中...' : '提交'}
                             </Button>
                         </Form.Item>
                     </Form>
