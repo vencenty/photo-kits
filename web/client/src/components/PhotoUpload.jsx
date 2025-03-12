@@ -4,7 +4,7 @@ import { UploadOutlined, DeleteOutlined, CameraOutlined, RotateLeftOutlined, Rot
 import ReactCrop from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import ImgCrop from 'antd-img-crop';
-import { uploadToCOS } from '../utils/cosConfig';
+import { uploadToServer } from '../utils/uploadConfig';
 
 const { TextArea } = Input;
 const { Header, Content } = Layout;
@@ -163,10 +163,10 @@ const PhotoUpload = () => {
                     setFileList(newFileList);
                 }
                 
-                // 上传到COS
+                // 上传到服务器
                 const key = `${form.getFieldValue('orderId')}/${size}/${file.name}`;
                 
-                uploadToCOS({
+                uploadToServer({
                     file: file,
                     key: key,
                     onProgress: (progressData) => {
@@ -183,8 +183,8 @@ const PhotoUpload = () => {
                         }
                     },
                     onSuccess: (data) => {
-                        // 使用修正后的URL
-                        const imageUrl = data.correctUrl || `https://${data.Location}`;
+                        // 获取上传后的URL
+                        const imageUrl = data.url;
                         
                         // 更新文件状态和URL
                         const updatedFileList = { ...fileList };
@@ -286,53 +286,102 @@ const PhotoUpload = () => {
 
     // 处理表单提交
     const handleSubmit = (values) => {
-        // 构建符合要求的新数据结构
-        const formData = {
-            orderId: values.orderId,
-            remark: values.remark,
-            photos: []
-        };
-        
-        // 添加各尺寸的照片数据
-        selectedSizes.forEach(size => {
-            const urls = (fileList[size] || []).map(file => file.cosUrl || '');
+        try {
+            // 构建符合要求的新数据结构
+            const formData = {
+                order_sn: values.orderId,
+                remark: values.remark,
+                photos: []
+            };
             
-            // 只添加有照片的尺寸
-            if (urls.length > 0) {
-                formData.photos.push({
-                    size: size,
-                    urls: urls
-                });
+            // 添加各尺寸的照片数据
+            selectedSizes.forEach(size => {
+                try {
+                    const urls = (fileList[size] || [])
+                        .filter(file => file.cosUrl) // 确保只包含有URL的文件
+                        .map(file => file.cosUrl);
+                    
+                    // 只添加有照片的尺寸
+                    if (urls.length > 0) {
+                        // 从尺寸值中提取数字部分作为size
+                        let sizeValue = size;
+                        if (size.includes('inch')) {
+                            sizeValue = size.replace('inch', '');
+                        }
+                        
+                        // 将尺寸转换为数字
+                        let sizeNumber = parseInt(sizeValue, 10);
+                        if (isNaN(sizeNumber)) {
+                            // 如果转换失败，使用默认值
+                            console.warn(`无法将尺寸 ${sizeValue} 转换为数字，使用默认值 1`);
+                            sizeNumber = 1;
+                        }
+                        
+                        // 检查URL是否有效
+                        const validUrls = urls.filter(url => url && url.trim() !== '');
+                        if (validUrls.length === 0) {
+                            console.warn(`尺寸 ${size} 没有有效的URL，跳过`);
+                            return;
+                        }
+                        
+                        console.log(`添加尺寸 ${size}，提取的数值为 ${sizeNumber}，URL数量: ${validUrls.length}`);
+                        
+                        formData.photos.push({
+                            size: sizeNumber,
+                            unit: size.includes('inch') ? '寸' : '',
+                            urls: validUrls
+                        });
+                    } else {
+                        console.log(`尺寸 ${size} 没有上传的照片，跳过`);
+                    }
+                } catch (sizeError) {
+                    console.error(`处理尺寸 ${size} 时出错:`, sizeError);
+                }
+            });
+            
+            // 检查是否有照片数据
+            if (formData.photos.length === 0) {
+                message.error('请至少上传一张照片');
+                console.error('没有照片数据可提交');
+                return;
             }
-        });
-    
-        console.log('提交的数据：', formData);
         
-        // 发送请求到后端API
-        fetch('/api/photos/batch-upload', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(formData),
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('网络请求失败');
-            }
-            return response.json();
-        })
-        .then(data => {
-            message.success(`上传成功！共上传了 ${data.total_photos} 张照片`);
-            // 清空表单和文件列表
-            form.resetFields();
-            setFileList({});
-            setSelectedSizes([]);
-        })
-        .catch(error => {
-            console.error('上传失败:', error);
-            message.error('上传失败，请重试');
-        });
+            console.log('提交的数据：', JSON.stringify(formData, null, 2));
+            
+            // 发送请求到后端API
+            fetch('http://localhost:8484/api/photos/batch-upload', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData),
+            })
+            .then(response => {
+                console.log('响应状态:', response.status);
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        console.error('错误响应内容:', text);
+                        throw new Error('网络请求失败: ' + response.status);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('上传成功响应:', data);
+                message.success(`上传成功！共上传了 ${data.total_photos} 张照片`);
+                // 清空表单和文件列表
+                form.resetFields();
+                setFileList({});
+                setSelectedSizes([]);
+            })
+            .catch(error => {
+                console.error('上传失败:', error);
+                message.error('上传失败，请重试');
+            });
+        } catch (error) {
+            console.error('提交表单时发生错误:', error);
+            message.error('提交表单时发生错误，请检查数据后重试');
+        }
     };
 
     const layoutStyle = {

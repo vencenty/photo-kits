@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log"
 	"photo-kits/internal/dao"
 	"photo-kits/internal/service"
 
@@ -21,6 +22,9 @@ func SetupRouter() *gin.Engine {
 		AllowCredentials: true,
 	}))
 
+	// 设置上传文件大小限制
+	r.MaxMultipartMemory = 8 << 20 // 8 MiB
+
 	// 健康检查
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -34,6 +38,12 @@ func SetupRouter() *gin.Engine {
 	photoService := service.NewPhotoService(photoRepo)
 	photoHandler := NewPhotoHandler(photoService)
 
+	// 初始化上传处理器
+	uploadHandler, err := NewUploadHandler()
+	if err != nil {
+		log.Fatalf("初始化上传处理器失败: %v", err)
+	}
+
 	// API路由组
 	api := r.Group("/api")
 
@@ -42,6 +52,9 @@ func SetupRouter() *gin.Engine {
 	{
 		photoGroup.POST("/batch-upload", photoHandler.BatchUploadPhotos)
 	}
+
+	// 文件上传路由
+	api.POST("/upload", uploadHandler.UploadFile)
 
 	return r
 }
