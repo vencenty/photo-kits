@@ -1,18 +1,17 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import PhotoUpload from './components/PhotoUpload';
+import UploadComplete from './components/UploadComplete';
 import './App.css';
 
 function App() {
   return (
     <Router>
       <div className="App">
-        <header className="App-header">
-          <h1>照片上传系统</h1>
-        </header>
         <main>
           <Routes>
             <Route path="/" element={<PhotoUpload />} />
+            <Route path="/upload-complete" element={<UploadComplete />} />
           </Routes>
         </main>
         <footer className="App-footer">

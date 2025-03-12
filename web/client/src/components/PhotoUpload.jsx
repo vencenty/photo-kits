@@ -5,6 +5,7 @@ import ReactCrop from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import ImgCrop from 'antd-img-crop';
 import { uploadToServer } from '../utils/uploadConfig';
+import { useNavigate } from 'react-router-dom';
 
 const { TextArea } = Input;
 const { Header, Content } = Layout;
@@ -17,6 +18,7 @@ const PhotoUpload = () => {
     const [orderIdEntered, setOrderIdEntered] = useState(false);
     const [uploading, setUploading] = useState(false); // 是否有文件正在上传
     const [totalPhotos, setTotalPhotos] = useState(0); // 所有尺寸的照片总数
+    const navigate = useNavigate(); // 用于页面导航
 
     // 照片尺寸配置
     const photoSizes = [
@@ -401,6 +403,9 @@ const PhotoUpload = () => {
         
             console.log('提交的数据：', JSON.stringify(formData, null, 2));
             
+            // 显示提交中的加载状态
+            message.loading('正在提交数据...', 0);
+            
             // 发送请求到后端API
             fetch('http://localhost:8484/api/photos/batch-upload', {
                 method: 'POST',
@@ -421,13 +426,27 @@ const PhotoUpload = () => {
             })
             .then(data => {
                 console.log('上传成功响应:', data);
+                
+                // 关闭加载提示
+                message.destroy();
+                
+                // 显示成功消息
                 message.success(`上传成功！共上传了 ${data.total_photos} 张照片`);
+                
                 // 清空表单和文件列表
                 form.resetFields();
                 setFileList({});
                 setSelectedSizes([]);
+                
+                // 跳转到完成页面
+                setTimeout(() => {
+                    navigate('/upload-complete');
+                }, 1000);
             })
             .catch(error => {
+                // 关闭加载提示
+                message.destroy();
+                
                 console.error('上传失败:', error);
                 message.error('上传失败，请重试');
             });
@@ -451,19 +470,19 @@ const PhotoUpload = () => {
 
     const layoutStyle = {
         minHeight: '100vh',
-        background: '#f5f5f5'
+        background: '#f8f9fa'  // 更柔和的背景色
     };
 
     const headerStyle = {
         height: 'auto',
-        background: 'linear-gradient(135deg, #1677ff 0%, #4096ff 100%)',
-        padding: '40px 0',
+        background: 'linear-gradient(120deg, #2196F3 0%, #4CAF50 100%)',  // 更现代的渐变色
+        padding: '32px 0',
         textAlign: 'center',
         color: '#fff',
         position: 'relative',
         overflow: 'hidden',
-        marginBottom: '24px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+        marginBottom: '32px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
     };
 
     const headerPatternStyle = {
@@ -472,55 +491,64 @@ const PhotoUpload = () => {
         left: 0,
         right: 0,
         bottom: 0,
-        background: 'url("data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23ffffff" fill-opacity="0.1"%3E%3Cpath d="M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
-        opacity: 0.2
+        background: 'url("data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23ffffff" fill-opacity="0.05"%3E%3Cpath d="M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
+        opacity: 0.1
     };
 
     const titleStyle = {
-        fontSize: '32px',
-        fontWeight: 'bold',
+        fontSize: '36px',
+        fontWeight: '600',
         margin: 0,
         position: 'relative',
-        textShadow: '2px 2px 4px rgba(0,0,0,0.2)'
+        textShadow: '2px 2px 4px rgba(0,0,0,0.15)',
+        letterSpacing: '1px'
     };
 
     const subtitleStyle = {
-        fontSize: '16px',
-        marginTop: '8px',
-        opacity: 0.9,
-        position: 'relative'
+        fontSize: '18px',
+        marginTop: '12px',
+        opacity: 0.95,
+        position: 'relative',
+        fontWeight: '300'
     };
 
     const contentStyle = {
-        maxWidth: '800px',
-        margin: '24px auto',
-        padding: '24px',
+        maxWidth: '900px',
+        margin: '32px auto',
+        padding: '32px',
         background: '#fff',
-        borderRadius: '8px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+        borderRadius: '16px',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.05)',
+        transition: 'all 0.3s ease'
     };
 
     const formItemStyle = {
-        marginBottom: '24px'
+        marginBottom: '32px'
     };
 
     const checkboxGroupStyle = {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+        display: 'flex',
+        flexWrap: 'wrap',
         gap: '12px',
         width: '100%'
     };
 
     const checkboxStyle = {
         margin: 0,
-        padding: '8px 16px',
-        border: '1px solid #d9d9d9',
-        borderRadius: '6px',
+        padding: '12px 24px',
+        border: '1px solid #e8e8e8',
+        borderRadius: '12px',
         transition: 'all 0.3s',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#fff'
+        background: '#fff',
+        cursor: 'pointer',
+        flexShrink: 0,
+        '&:hover': {
+            borderColor: '#40a9ff',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+        }
     };
 
     return (
@@ -559,50 +587,47 @@ const PhotoUpload = () => {
                             style={formItemStyle}
                             extra={!orderIdEntered ? <span style={{ color: '#ff4d4f' }}>请先填写订单号，然后再选择照片尺寸</span> : null}
                         >
-                            <Checkbox.Group 
-                                onChange={handleSizeChange}
-                                style={checkboxGroupStyle}
-                                disabled={!orderIdEntered}
-                            >
-                                {photoSizes.map(size => (
-                                    <Checkbox 
-                                        key={size.value} 
-                                        value={size.value}
-                                        style={checkboxStyle}
-                                        disabled={!orderIdEntered}
-                                    >
-                                        {size.label}
-                                    </Checkbox>
-                                ))}
-                            </Checkbox.Group>
+                            <div style={{ 
+                                padding: '16px 24px', 
+                                background: '#fafafa', 
+                                borderRadius: '12px',
+                                border: '1px solid #f0f0f0'
+                            }}>
+                                <Checkbox.Group 
+                                    onChange={handleSizeChange}
+                                    style={checkboxGroupStyle}
+                                    disabled={!orderIdEntered}
+                                >
+                                    {photoSizes.map(size => (
+                                        <Checkbox 
+                                            key={size.value} 
+                                            value={size.value}
+                                            style={checkboxStyle}
+                                            disabled={!orderIdEntered}
+                                        >
+                                            {size.label}
+                                        </Checkbox>
+                                    ))}
+                                </Checkbox.Group>
+                            </div>
                         </Form.Item>
-
-                        {/* 照片总计数统计 */}
-                        <div style={{ 
-                            marginBottom: '24px', 
-                            padding: '16px', 
-                            background: '#f0f5ff', 
-                            borderRadius: '8px',
-                            border: '1px solid #d6e4ff'
-                        }}>
-                            <Statistic 
-                                title="已上传照片总数" 
-                                value={totalPhotos} 
-                                suffix="张" 
-                                valueStyle={{ color: '#1677ff' }}
-                            />
-                            {uploading && (
-                                <div style={{ marginTop: '8px', color: '#ff4d4f' }}>
-                                    有照片正在上传中，请等待上传完成...
-                                </div>
-                            )}
-                        </div>
 
                         {selectedSizes.map(size => (
                             <Form.Item key={size} style={formItemStyle}>
                                 <Card 
                                     title={`${photoSizes.find(s => s.value === size)?.label} 照片上传`}
-                                    style={{ borderRadius: '8px' }}
+                                    style={{ 
+                                        borderRadius: '12px',
+                                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                                        border: '1px solid #f0f0f0'
+                                    }}
+                                    headStyle={{
+                                        background: '#fafafa',
+                                        borderTopLeftRadius: '12px',
+                                        borderTopRightRadius: '12px',
+                                        borderBottom: '1px solid #f0f0f0',
+                                        padding: '16px 24px'
+                                    }}
                                 >
                                     <Upload
                                         listType="picture-card"
@@ -631,11 +656,13 @@ const PhotoUpload = () => {
                                     </Upload>
                                     <div style={{ 
                                         marginTop: 16,
-                                        padding: '8px 16px',
-                                        background: '#f5f5f5',
-                                        borderRadius: '4px',
+                                        padding: '12px 20px',
+                                        background: '#f8f9fa',
+                                        borderRadius: '8px',
                                         display: 'flex',
-                                        justifyContent: 'space-between'
+                                        justifyContent: 'space-between',
+                                        fontSize: '14px',
+                                        color: '#666'
                                     }}>
                                         <span>已上传: {(fileList[size] || []).filter(file => file.status === 'done').length} 张</span>
                                         <span>最多可上传: 1000 张</span>
@@ -663,14 +690,24 @@ const PhotoUpload = () => {
                                 size="large"
                                 style={{
                                     width: '100%',
-                                    height: '48px',
-                                    borderRadius: '6px',
-                                    fontSize: '16px'
+                                    height: '50px',
+                                    borderRadius: '12px',
+                                    fontSize: '16px',
+                                    fontWeight: '500',
+                                    background: 'linear-gradient(120deg, #2196F3 0%, #4CAF50 100%)',
+                                    border: 'none',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                    transition: 'all 0.3s ease'
                                 }}
                                 disabled={uploading || totalPhotos === 0}
                             >
-                                {uploading ? '正在上传中...' : '提交'}
+                                {uploading ? '正在上传中...' : `提交 (已上传${totalPhotos}张照片)`}
                             </Button>
+                            {uploading && (
+                                <div style={{ marginTop: '8px', color: '#ff4d4f', textAlign: 'center' }}>
+                                    有照片正在上传中，请等待上传完成...
+                                </div>
+                            )}
                         </Form.Item>
                     </Form>
                 </div>

@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
@@ -25,7 +24,7 @@ func NewPhotoHandler(photoService service.PhotoService) *PhotoHandler {
 // BatchUploadPhotos 批量上传照片
 func (h *PhotoHandler) BatchUploadPhotos(c *gin.Context) {
 	var req model.PhotoUploadRequest
-	
+
 	// 读取请求体
 	body, err := c.GetRawData()
 	if err != nil {
@@ -36,10 +35,10 @@ func (h *PhotoHandler) BatchUploadPhotos(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// 打印原始请求数据
 	log.Printf("收到的原始请求数据: %s", string(body))
-	
+
 	// 解析JSON
 	if err := json.Unmarshal(body, &req); err != nil {
 		log.Printf("解析JSON失败: %v", err)
@@ -49,7 +48,7 @@ func (h *PhotoHandler) BatchUploadPhotos(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// 打印解析后的请求数据
 	log.Printf("解析后的请求数据: %+v", req)
 
@@ -71,10 +70,10 @@ func (h *PhotoHandler) BatchUploadPhotos(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// 打印照片数据
 	for i, photo := range req.Photos {
-		log.Printf("照片[%d]: 尺寸=%d, 单位=%s, URL数量=%d", 
+		log.Printf("照片[%d]: 尺寸=%d, 单位=%s, URL数量=%d",
 			i, photo.Size, photo.Unit, len(photo.URLs))
 		if len(photo.URLs) > 0 {
 			log.Printf("第一个URL: %s", photo.URLs[0])
@@ -91,7 +90,7 @@ func (h *PhotoHandler) BatchUploadPhotos(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// 打印响应数据
 	log.Printf("上传成功: 总照片数=%d", resp.TotalPhotos)
 
