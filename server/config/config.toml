@@ -1,0 +1,12 @@
+# 服务器配置
+[server]
+port = 8484
+mode = "debug"
+
+# 数据库配置
+[database]
+host = "fn.vencenty.cn"
+port = 53824
+user = "root"
+password = "UvbGrsVVaKDDzOEF"
+dbname = "photo-kits" 
