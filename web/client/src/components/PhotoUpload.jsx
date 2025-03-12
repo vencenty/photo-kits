@@ -13,6 +13,7 @@ const PhotoUpload = () => {
     const [form] = Form.useForm();
     const [selectedSizes, setSelectedSizes] = useState([]);
     const [fileList, setFileList] = useState({});
+    const [orderIdEntered, setOrderIdEntered] = useState(false);
 
     // 照片尺寸配置
     const photoSizes = [
@@ -25,6 +26,12 @@ const PhotoUpload = () => {
         { label: '10寸', value: '10inch', ratio: 10/8 },
         { label: 'A4', value: 'A4', ratio: 210/297 }
     ];
+
+    // 处理订单号变化
+    const handleOrderIdChange = (e) => {
+        const value = e.target.value;
+        setOrderIdEntered(!!value.trim());
+    };
 
     // 处理尺寸选择变化
     const handleSizeChange = (checkedValues) => {
@@ -279,20 +286,53 @@ const PhotoUpload = () => {
 
     // 处理表单提交
     const handleSubmit = (values) => {
-        // 构建符合要求的数据结构
+        // 构建符合要求的新数据结构
         const formData = {
             orderId: values.orderId,
-            remark: values.remark
+            remark: values.remark,
+            photos: []
         };
         
         // 添加各尺寸的照片数据
         selectedSizes.forEach(size => {
-            // 保存文件的COS URL
-            formData[size] = (fileList[size] || []).map(file => file.cosUrl || '');
+            const urls = (fileList[size] || []).map(file => file.cosUrl || '');
+            
+            // 只添加有照片的尺寸
+            if (urls.length > 0) {
+                formData.photos.push({
+                    size: size,
+                    urls: urls
+                });
+            }
         });
-        
+    
         console.log('提交的数据：', formData);
-        // 这里添加实际的提交逻辑
+        
+        // 发送请求到后端API
+        fetch('/api/photos/batch-upload', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(formData),
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('网络请求失败');
+            }
+            return response.json();
+        })
+        .then(data => {
+            message.success(`上传成功！共上传了 ${data.total_photos} 张照片`);
+            // 清空表单和文件列表
+            form.resetFields();
+            setFileList({});
+            setSelectedSizes([]);
+        })
+        .catch(error => {
+            console.error('上传失败:', error);
+            message.error('上传失败，请重试');
+        });
     };
 
     const layoutStyle = {
@@ -394,6 +434,7 @@ const PhotoUpload = () => {
                                 placeholder="请输入订单号" 
                                 size="large"
                                 style={{ borderRadius: '6px' }}
+                                onChange={handleOrderIdChange}
                             />
                         </Form.Item>
 
@@ -402,16 +443,19 @@ const PhotoUpload = () => {
                             label={<span style={{ fontSize: '16px', fontWeight: 500 }}>照片尺寸</span>}
                             rules={[{ required: true, message: '请选择照片尺寸' }]}
                             style={formItemStyle}
+                            extra={!orderIdEntered ? <span style={{ color: '#ff4d4f' }}>请先填写订单号，然后再选择照片尺寸</span> : null}
                         >
                             <Checkbox.Group 
                                 onChange={handleSizeChange}
                                 style={checkboxGroupStyle}
+                                disabled={!orderIdEntered}
                             >
                                 {photoSizes.map(size => (
                                     <Checkbox 
                                         key={size.value} 
                                         value={size.value}
                                         style={checkboxStyle}
+                                        disabled={!orderIdEntered}
                                     >
                                         {size.label}
                                     </Checkbox>
@@ -435,6 +479,7 @@ const PhotoUpload = () => {
                                         multiple={true}
                                         directory={false}
                                         customRequest={handleUpload(size).customRequest}
+                                        disabled={!orderIdEntered}
                                     >
                                         {(fileList[size]?.length || 0) >= 1000 ? null : (
                                             <div>

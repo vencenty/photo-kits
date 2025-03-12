@@ -9,12 +9,13 @@
 
 第四个字段是备注：备注字段的placeholder是：请输入备注信息，非必填。
 {
-    "orderId": "123456",
-    "3inch": [
+    "orderId": "123456", // 订单id
+    "remark": "备注信息", // 备注信息
+    "3inch": [ // 3寸照片
         1.jpg,
         2.jpg
     ],
-    "4inch": [
+    "4inch": [ // 4寸照片
         4.jpg,
         5.jpg
     ]
