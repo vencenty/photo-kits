@@ -9,8 +9,10 @@ import (
 type PhotoRepository interface {
 	CreateOrder(order *model.Order) error
 	GetOrderByOrderSN(orderSN string) (*model.Order, error)
+	UpdateOrder(order *model.Order) error
 	CreatePhotos(photos []*model.Photo) error
 	CountPhotosByOrderID(orderID string) (int64, error)
+	DeletePhotosByOrderID(orderID uint) error
 }
 
 // photoRepository 照片仓库实现
@@ -36,6 +38,14 @@ func (r *photoRepository) GetOrderByOrderSN(orderSN string) (*model.Order, error
 	return &order, nil
 }
 
+// UpdateOrder 更新订单信息
+func (r *photoRepository) UpdateOrder(order *model.Order) error {
+	return database.DB.Model(&model.Order{}).Where("order_sn = ?", order.OrderSN).Updates(map[string]interface{}{
+		"remark":     order.Remark,
+		"updated_at": order.UpdatedAt,
+	}).Error
+}
+
 // CreatePhotos 批量创建照片
 func (r *photoRepository) CreatePhotos(photos []*model.Photo) error {
 	return database.DB.Create(&photos).Error
@@ -46,4 +56,9 @@ func (r *photoRepository) CountPhotosByOrderID(orderID string) (int64, error) {
 	var count int64
 	err := database.DB.Model(&model.Photo{}).Where("order_id = ?", orderID).Count(&count).Error
 	return count, err
+}
+
+// DeletePhotosByOrderID 删除订单关联的所有照片
+func (r *photoRepository) DeletePhotosByOrderID(orderID uint) error {
+	return database.DB.Where("order_id = ?", orderID).Delete(&model.Photo{}).Error
 }

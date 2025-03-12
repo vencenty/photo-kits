@@ -28,16 +28,20 @@ func NewPhotoService(photoRepo dao.PhotoRepository) PhotoService {
 
 // BatchUploadPhotos 批量上传照片
 func (s *photoService) BatchUploadPhotos(req *model.PhotoUploadRequest) (*model.PhotoUploadResponse, error) {
-	if req.OrderID == "" {
+	if req.OrderSn == "" {
 		return nil, errors.New("订单号不能为空")
 	}
 
+	if len(req.Photos) == 0 {
+		return nil, errors.New("照片数据不能为空")
+	}
+
 	// 检查订单是否存在，不存在则创建
-	order, err := s.photoRepo.GetOrderByOrderSN(req.OrderID)
+	order, err := s.photoRepo.GetOrderByOrderSN(req.OrderSn)
 	if err != nil {
 		// 创建新订单
 		order = &model.Order{
-			OrderSN:   req.OrderID,
+			OrderSN:   req.OrderSn,
 			Remark:    req.Remark,
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
@@ -45,37 +49,53 @@ func (s *photoService) BatchUploadPhotos(req *model.PhotoUploadRequest) (*model.
 		if err := s.photoRepo.CreateOrder(order); err != nil {
 			return nil, errors.New("创建订单失败: " + err.Error())
 		}
+	} else {
+
+		// 先删除该订单关联的所有照片
+		if err = s.photoRepo.DeletePhotosByOrderID(order.ID); err != nil {
+			return nil, errors.New("删除旧照片记录失败: " + err.Error())
+		}
+
+		// 如果订单存在，更新备注
+		if order.Remark != req.Remark {
+			order.Remark = req.Remark
+			order.UpdatedAt = time.Now()
+			if err := s.photoRepo.UpdateOrder(order); err != nil {
+				return nil, errors.New("更新订单失败: " + err.Error())
+			}
+		}
 	}
 
 	// 处理照片数据
 	var photos []*model.Photo
 	totalPhotos := 0
 
-	for _, photoBatch := range req.Photos {
-		// 解析尺寸
-		size, unit := parseSizeAndUnit(photoBatch.Size, photoBatch.Unit)
-
+	for _, photo := range req.Photos {
 		// 添加每个URL对应的照片记录
-		for _, url := range photoBatch.URLs {
+		for _, url := range photo.URLs {
 			if url == "" {
 				continue
 			}
 
-			photo := &model.Photo{
-				OrderID:   req.OrderID,
+			photoModel := &model.Photo{
+				OrderID:   order.ID,
 				URL:       url,
-				Size:      size,
-				Unit:      unit,
+				Size:      photo.Size,
+				Unit:      photo.Unit,
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
 			}
-			photos = append(photos, photo)
+			photos = append(photos, photoModel)
 			totalPhotos++
 		}
 	}
 
 	// 保存照片记录
 	if len(photos) > 0 {
+
+		if err = s.photoRepo.DeletePhotosByOrderID(order.ID); err != nil {
+			return nil, errors.New("删除旧照片记录失败: " + err.Error())
+		}
 		if err := s.photoRepo.CreatePhotos(photos); err != nil {
 			return nil, errors.New("保存照片记录失败: " + err.Error())
 		}
@@ -93,25 +113,25 @@ func parseSizeAndUnit(sizeStr, unitStr string) (int, string) {
 	// 如果提供了单位，则使用提供的单位
 	if unitStr != "" {
 		unit := unitStr
-		
+
 		// 处理特殊情况
 		if sizeStr == "A4" {
 			return 0, "A4"
 		}
-		
+
 		// 移除"inch"后缀（如果有）
 		sizeStr = strings.TrimSuffix(sizeStr, "inch")
-		
+
 		// 尝试将尺寸转换为数字
 		size, err := strconv.Atoi(sizeStr)
 		if err != nil {
 			// 如果转换失败，返回默认值
 			return 0, unit
 		}
-		
+
 		return size, unit
 	}
-	
+
 	// 如果没有提供单位，使用旧的解析逻辑
 	return parseSize(sizeStr)
 }

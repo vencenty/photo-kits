@@ -31,7 +31,7 @@ func (h *PhotoHandler) BatchUploadPhotos(c *gin.Context) {
 	}
 
 	// 验证请求数据
-	if req.OrderID == "" {
+	if req.OrderSn == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "订单号不能为空",
