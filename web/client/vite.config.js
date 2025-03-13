@@ -5,15 +5,15 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    allowedHosts: ['mac-photo-kits.vencenty.cn'], // 允许的主机
     host: '0.0.0.0',
     port: 5173,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8484',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '/api')
-      }
-    }
+    // 注释掉代理配置，使用直接请求
+    // proxy: {
+    //   '/api': {
+    //     target: 'https://photo-kits-api.vencenty.cn',
+    //     changeOrigin: true,
+    //     rewrite: (path) => path
+    //   }
+    // }
   }
 }) 

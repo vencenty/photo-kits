@@ -2,6 +2,9 @@
  * 文件上传工具函数
  */
 
+// API基础URL - 与apiService.js中保持一致
+const API_BASE_URL = 'https://photo-kits-api.vencenty.cn';
+
 /**
  * 上传文件到服务器
  * @param {Object} options 上传选项
@@ -66,8 +69,10 @@ export const uploadToServer = async (options) => {
             onError && onError(new Error('上传已取消'));
         });
         
-        // 发送请求
-        xhr.open('POST', 'http://localhost:8484/api/upload');
+        // 发送请求 - 使用完整URL
+        const url = `${API_BASE_URL}/api/upload`;
+        console.log(`发送上传请求到: ${url}`);
+        xhr.open('POST', url);
         xhr.send(formData);
         
     } catch (error) {

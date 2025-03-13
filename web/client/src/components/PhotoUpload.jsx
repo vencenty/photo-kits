@@ -6,6 +6,7 @@ import 'react-image-crop/dist/ReactCrop.css';
 import ImgCrop from 'antd-img-crop';
 import { uploadToServer } from '../utils/uploadConfig';
 import { useNavigate } from 'react-router-dom';
+import { post } from '../utils/apiService';
 
 const { TextArea } = Input;
 const { Header, Content } = Layout;
@@ -406,50 +407,34 @@ const PhotoUpload = () => {
             // 显示提交中的加载状态
             message.loading('正在提交数据...', 0);
             
-            // 发送请求到后端API
-            fetch('http://localhost:8484/api/photos/batch-upload', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(formData),
-            })
-            .then(response => {
-                console.log('响应状态:', response.status);
-                if (!response.ok) {
-                    return response.text().then(text => {
-                        console.error('错误响应内容:', text);
-                        throw new Error('网络请求失败: ' + response.status);
-                    });
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log('上传成功响应:', data);
-                
-                // 关闭加载提示
-                message.destroy();
-                
-                // 显示成功消息
-                message.success(`上传成功！共上传了 ${data.total_photos} 张照片`);
-                
-                // 清空表单和文件列表
-                form.resetFields();
-                setFileList({});
-                setSelectedSizes([]);
-                
-                // 跳转到完成页面
-                setTimeout(() => {
-                    navigate('/upload-complete');
-                }, 1000);
-            })
-            .catch(error => {
-                // 关闭加载提示
-                message.destroy();
-                
-                console.error('上传失败:', error);
-                message.error('上传失败，请重试');
-            });
+            // 使用apiService发送请求到后端API
+            post('/api/photos/batch-upload', formData)
+                .then(data => {
+                    console.log('上传成功响应:', data);
+                    
+                    // 关闭加载提示
+                    message.destroy();
+                    
+                    // 显示成功消息
+                    message.success(`上传成功！共上传了 ${data.total_photos} 张照片`);
+                    
+                    // 清空表单和文件列表
+                    form.resetFields();
+                    setFileList({});
+                    setSelectedSizes([]);
+                    
+                    // 跳转到完成页面
+                    setTimeout(() => {
+                        navigate('/upload-complete');
+                    }, 1000);
+                })
+                .catch(error => {
+                    // 关闭加载提示
+                    message.destroy();
+                    
+                    console.error('上传失败:', error);
+                    message.error('上传失败，请重试');
+                });
         } catch (error) {
             console.error('提交表单时发生错误:', error);
             message.error('提交表单时发生错误，请检查数据后重试');

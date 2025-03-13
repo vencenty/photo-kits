@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/spf13/viper"
 	"log"
 	"os"
 	"path/filepath"
@@ -38,18 +39,29 @@ func (d *DatabaseConfig) GetDSN() string {
 
 // LoadConfig 加载配置
 func LoadConfig() *Config {
+	var config *Config
+	viper.SetConfigName("config")   // 不带扩展名
+	viper.SetConfigType("toml")     // 这里指定为 TOML
+	viper.AddConfigPath("./config") // 配置文件所在目录
+
+	// 读取配置文件
+	if err := viper.ReadInConfig(); err != nil {
+		log.Fatalf("读取配置失败: %v", err)
+	}
+
+	// 监听配置变更
 	// 默认配置
-	config := &Config{
+	config = &Config{
 		Server: ServerConfig{
-			Port: getEnvAsInt("SERVER_PORT", 8080),
-			Mode: getEnv("GIN_MODE", "debug"),
+			Port: viper.GetInt("server.port"),
+			Mode: viper.GetString("server.mode"),
 		},
 		Database: DatabaseConfig{
-			Host:     getEnv("DB_HOST", "localhost"),
-			Port:     getEnvAsInt("DB_PORT", 3306),
-			User:     getEnv("DB_USER", "root"),
-			Password: getEnv("DB_PASSWORD", ""),
-			DBName:   getEnv("DB_NAME", "photo-kits"),
+			Host:     viper.GetString("database.host"),
+			Port:     viper.GetInt("database.port"),
+			User:     viper.GetString("database.user"),
+			Password: viper.GetString("database.password"),
+			DBName:   viper.GetString("database.dbname"),
 		},
 	}
 

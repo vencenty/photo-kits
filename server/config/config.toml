@@ -9,4 +9,4 @@ host = "fn.vencenty.cn"
 port = 53824
 user = "root"
 password = "UvbGrsVVaKDDzOEF"
-dbname = "photo-kits" 
+dbname = "photo-kits"
