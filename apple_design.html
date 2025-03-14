@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>田田洗照片 - 苹果风格设计</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --apple-bg: #ffffff;
+            --apple-light-bg: #f5f5f7;
+            --apple-dark: #1d1d1f;
+            --apple-blue: #0071e3;
+            --apple-blue-hover: #0077ed;
+            --apple-gray: #86868b;
+            --apple-light-gray: #d2d2d7;
+            --apple-green: #4FD15A;
+            --apple-red: #ff3b30;
+            --apple-yellow: #ffcc00;
+            --apple-border-radius: 8px;
+            --apple-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+        
+        body {
+            font-family: var(--apple-font);
+            background-color: var(--apple-bg);
+            color: var(--apple-dark);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            padding-bottom: 50px;
+        }
+        
+        .page-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .page-title {
+            text-align: center;
+            margin-bottom: 40px;
+            color: var(--apple-dark);
+            font-weight: 600;
+            font-size: 32px;
+        }
+        
+        .demo-page {
+            margin-bottom: 80px;
+            border: 1px solid var(--apple-light-gray);
+            padding: 20px;
+            border-radius: var(--apple-border-radius);
+            position: relative;
+            background-color: var(--apple-bg);
+        }
+        
+        .demo-page-title {
+            position: absolute;
+            top: -15px;
+            left: 20px;
+            background: var(--apple-bg);
+            padding: 0 10px;
+            font-weight: 500;
+            color: var(--apple-gray);
+            font-size: 14px;
+        }
+        
+        /* 苹果风格卡片 */
+        .card {
+            border-radius: var(--apple-border-radius);
+            border: none;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+            background-color: var(--apple-bg);
+            transition: box-shadow 0.3s ease;
+        }
+        
+        .card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .card-header {
+            background-color: var(--apple-bg);
+            border-bottom: 1px solid var(--apple-light-gray);
+            padding: 20px;
+        }
+        
+        .card-body {
+            padding: 30px;
+        }
+        
+        /* 苹果风格按钮 */
+        .btn-primary {
+            background-color: var(--apple-blue);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: 400;
+            font-size: 15px;
+            transition: all 0.2s ease;
+            box-shadow: none;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--apple-blue-hover);
+            transform: translateY(-1px);
+        }
+        
+        .btn-outline-primary {
+            color: var(--apple-blue);
+            border-color: var(--apple-blue);
+            border-radius: 20px;
+            font-weight: 400;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-outline-primary:hover {
+            background-color: var(--apple-blue);
+            color: white;
+        }
+        
+        /* 苹果风格表单控件 */
+        .form-control {
+            padding: 12px 16px;
+            border-radius: var(--apple-border-radius);
+            border: 1px solid var(--apple-light-gray);
+            background-color: var(--apple-light-bg);
+            transition: all 0.2s ease;
+            font-size: 15px;
+        }
+        
+        .form-control:focus {
+            border-color: var(--apple-blue);
+            background-color: var(--apple-bg);
+            box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.2);
+        }
+        
+        .form-select {
+            padding: 12px 16px;
+            border-radius: var(--apple-border-radius);
+            border: 1px solid var(--apple-light-gray);
+            background-color: var(--apple-light-bg);
+            transition: all 0.2s ease;
+            font-size: 15px;
+        }
+        
+        .form-select:focus {
+            border-color: var(--apple-blue);
+            background-color: var(--apple-bg);
+            box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.2);
+        }
+        
+        .form-label {
+            font-weight: 500;
+            color: var(--apple-dark);
+            margin-bottom: 8px;
+            font-size: 15px;
+        }
+        
+        /* 验证码输入框 */
+        .verification-code {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .verification-code .form-control {
+            flex-grow: 1;
+        }
+        
+        .verification-code .btn {
+            white-space: nowrap;
+        }
+        
+        /* 照片尺寸选择 */
+        .photo-size-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .photo-size-option {
+            border: 1px solid var(--apple-light-gray);
+            border-radius: 20px;
+            padding: 8px 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: var(--apple-light-bg);
+            font-size: 14px;
+        }
+        
+        .photo-size-option:hover {
+            border-color: var(--apple-blue);
+            background-color: rgba(0, 113, 227, 0.05);
+        }
+        
+        .photo-size-option.selected {
+            border-color: var(--apple-blue);
+            background-color: rgba(0, 113, 227, 0.1);
+            color: var(--apple-blue);
+        }
+        
+        /* 上传区域 */
+        .upload-area {
+            border: 2px dashed var(--apple-light-gray);
+            border-radius: var(--apple-border-radius);
+            padding: 40px;
+            text-align: center;
+            margin-top: 20px;
+            background-color: var(--apple-light-bg);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .upload-area:hover {
+            border-color: var(--apple-blue);
+            background-color: rgba(0, 113, 227, 0.05);
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            color: var(--apple-gray);
+            margin-bottom: 15px;
+        }
+        
+        /* 照片网格 */
+        .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .photo-item {
+            position: relative;
+            border-radius: var(--apple-border-radius);
+            overflow: hidden;
+            background-color: var(--apple-light-bg);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .photo-item:hover {
+            transform: scale(1.02);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .photo-item img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+        }
+        
+        .photo-actions {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            display: flex;
+            gap: 8px;
+        }
+        
+        .photo-action-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: var(--apple-dark);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+        
+        .photo-action-btn:hover {
+            background: white;
+            color: var(--apple-blue);
+            transform: scale(1.1);
+        }
+        
+        /* 订单卡片 */
+        .order-card {
+            margin-bottom: 20px;
+            transition: all 0.2s ease;
+        }
+        
+        .order-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        
+        .order-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .order-photos {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+        }
+        
+        .order-photo {
+            width: 80px;
+            height: 80px;
+            border-radius: var(--apple-border-radius);
+            object-fit: cover;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .badge-custom {
+            background-color: var(--apple-blue);
+            padding: 5px 12px;
+            border-radius: 12px;
+            font-weight: 400;
+            font-size: 12px;
+        }
+        
+        .badge-success {
+            background-color: var(--apple-green);
+        }
+        
+        /* 苹果风格标签页 */
+        .nav-tabs {
+            border-bottom: none;
+            margin-bottom: 30px;
+            display: inline-flex;
+            background-color: var(--apple-light-bg);
+            border-radius: 20px;
+            padding: 4px;
+        }
+        
+        .nav-tabs .nav-link {
+            border: none;
+            color: var(--apple-dark);
+            font-weight: 400;
+            padding: 8px 16px;
+            border-radius: 16px;
+            margin: 0;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+        
+        .nav-tabs .nav-link.active {
+            background: var(--apple-bg);
+            color: var(--apple-dark);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            font-weight: 500;
+        }
+        
+        /* 分页 */
+        .pagination {
+            margin-top: 30px;
+        }
+        
+        .pagination .page-link {
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 4px;
+            color: var(--apple-dark);
+            border: none;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+        
+        .pagination .page-item.active .page-link {
+            background-color: var(--apple-blue);
+            color: white;
+        }
+        
+        .pagination .page-item:not(.active) .page-link:hover {
+            background-color: var(--apple-light-bg);
+        }
+        
+        /* 成功页面 */
+        .success-icon {
+            font-size: 72px;
+            color: var(--apple-green);
+            margin-bottom: 20px;
+        }
+        
+        /* 404页面 */
+        .error-icon {
+            font-size: 72px;
+            color: var(--apple-gray);
+            margin-bottom: 20px;
+        }
+        
+        /* 中转页 */
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid var(--apple-light-gray);
+            border-top: 4px solid var(--apple-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* 进度条 */
+        .progress {
+            height: 6px;
+            border-radius: 3px;
+            background-color: var(--apple-light-bg);
+            margin: 20px 0;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            background-color: var(--apple-blue);
+            border-radius: 3px;
+        }
+        
+        /* 订单详情页 */
+        .order-detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--apple-light-gray);
+        }
+        
+        .order-status-timeline {
+            display: flex;
+            justify-content: space-between;
+            margin: 30px 0;
+            position: relative;
+        }
+        
+        .order-status-timeline::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: var(--apple-light-gray);
+            z-index: 1;
+        }
+        
+        .timeline-step {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            width: 25%;
+        }
+        
+        .timeline-step-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background-color: var(--apple-light-bg);
+            border: 2px solid var(--apple-light-gray);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 10px;
+        }
+        
+        .timeline-step.active .timeline-step-icon {
+            background-color: var(--apple-blue);
+            border-color: var(--apple-blue);
+            color: white;
+        }
+        
+        .timeline-step.completed .timeline-step-icon {
+            background-color: var(--apple-green);
+            border-color: var(--apple-green);
+            color: white;
+        }
+        
+        .timeline-step-label {
+            font-size: 14px;
+            color: var(--apple-gray);
+        }
+        
+        .timeline-step.active .timeline-step-label,
+        .timeline-step.completed .timeline-step-label {
+            color: var(--apple-dark);
+            font-weight: 500;
+        }
+        
+        .order-detail-section {
+            margin-bottom: 30px;
+        }
+        
+        .order-detail-section-title {
+            font-weight: 500;
+            margin-bottom: 15px;
+            color: var(--apple-dark);
+        }
+        
+        .order-info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--apple-light-gray);
+        }
+        
+        .order-info-label {
+            color: var(--apple-gray);
+            font-size: 14px;
+        }
+        
+        .order-info-value {
+            font-weight: 500;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <h1 class="page-title">田田洗照片 - 苹果风格设计</h1>
+        
+        <!-- 登录页面 -->
+        <div class="demo-page">
+            <div class="demo-page-title">登录页面</div>
+            <div class="row justify-content-center">
+                <div class="col-md-6">
+                    <div class="text-center mb-5">
+                        <i class="bi bi-camera" style="font-size: 48px; color: var(--apple-blue);"></i>
+                        <h2 class="mt-3" style="font-weight: 500;">田田洗照片</h2>
+                        <p class="text-muted" style="font-size: 15px;">登录您的账户上传和管理照片</p>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-body">
+                            <form>
+                                <div class="mb-4">
+                                    <label for="phone" class="form-label">手机号码</label>
+                                    <input type="tel" class="form-control" id="phone" placeholder="请输入您的手机号码">
+                                </div>
+                                <div class="mb-4">
+                                    <label for="verification-code" class="form-label">验证码</label>
+                                    <div class="verification-code">
+                                        <input type="text" class="form-control" id="verification-code" placeholder="请输入验证码">
+                                        <button type="button" class="btn btn-outline-primary">获取验证码</button>
+                                    </div>
+                                </div>
+                                <div class="d-grid gap-2 mt-5">
+                                    <button type="submit" class="btn btn-primary">登录</button>
+                                </div>
+                                <div class="text-center mt-4">
+                                    <a href="#" style="color: var(--apple-blue); text-decoration: none; font-size: 14px;">遇到问题？联系客服</a>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 上传照片页面 -->
+        <div class="demo-page">
+            <div class="demo-page-title">上传照片页面</div>
+            <div class="row justify-content-center">
+                <div class="col-md-10">
+                    <div class="text-center mb-5">
+                        <i class="bi bi-camera" style="font-size: 48px; color: var(--apple-blue);"></i>
+                        <h2 class="mt-3" style="font-weight: 500;">上传照片</h2>
+                        <p class="text-muted" style="font-size: 15px;">上传您的照片，我们将为您提供专业的洗印服务</p>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-body">
+                            <form>
+                                <div class="mb-4">
+                                    <label for="order-id" class="form-label">淘宝订单号</label>
+                                    <input type="text" class="form-control" id="order-id" placeholder="请输入您的淘宝订单号">
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label class="form-label">照片尺寸</label>
+                                    <div class="photo-size-options">
+                                        <div class="photo-size-option selected">3寸</div>
+                                        <div class="photo-size-option">4寸</div>
+                                        <div class="photo-size-option">5寸</div>
+                                        <div class="photo-size-option">6寸</div>
+                                        <div class="photo-size-option">7寸</div>
+                                        <div class="photo-size-option">8寸</div>
+                                        <div class="photo-size-option">10寸</div>
+                                        <div class="photo-size-option">A4</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <h5 class="mb-0" style="font-weight: 500;">3寸照片上传</h5>
+                                                <span class="badge bg-light text-dark" style="font-weight: 400; border: 1px solid var(--apple-light-gray);">已选择</span>
+                                            </div>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="upload-area">
+                                                <i class="bi bi-cloud-arrow-up upload-icon"></i>
+                                                <h5 style="font-weight: 500;">点击或拖拽上传照片</h5>
+                                                <p class="text-muted" style="font-size: 14px;">支持多选或拖拽多个文件</p>
+                                                <button type="button" class="btn btn-outline-primary mt-3">选择文件</button>
+                                            </div>
+                                            
+                                            <div class="photo-grid">
+                                                <div class="photo-item">
+                                                    <img src="https://picsum.photos/id/237/300/300" alt="照片预览">
+                                                    <div class="photo-actions">
+                                                        <div class="photo-action-btn">
+                                                            <i class="bi bi-eye"></i>
+                                                        </div>
+                                                        <div class="photo-action-btn">
+                                                            <i class="bi bi-trash"></i>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="photo-item">
+                                                    <img src="https://picsum.photos/id/238/300/300" alt="照片预览">
+                                                    <div class="photo-actions">
+                                                        <div class="photo-action-btn">
+                                                            <i class="bi bi-eye"></i>
+                                                        </div>
+                                                        <div class="photo-action-btn">
+                                                            <i class="bi bi-trash"></i>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="photo-item">
+                                                    <img src="https://picsum.photos/id/239/300/300" alt="照片预览">
+                                                    <div class="photo-actions">
+                                                        <div class="photo-action-btn">
+                                                            <i class="bi bi-eye"></i>
+                                                        </div>
+                                                        <div class="photo-action-btn">
+                                                            <i class="bi bi-trash"></i>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="d-flex justify-content-between mt-3">
+                                                <span style="font-size: 14px; color: var(--apple-gray);">已上传: 3 张</span>
+                                                <span style="font-size: 14px; color: var(--apple-gray);">最多可上传: 1000 张</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label for="remark" class="form-label">备注</label>
+                                    <textarea class="form-control" id="remark" rows="4" placeholder="请输入备注信息"></textarea>
+                                </div>
+                                
+                                <div class="d-grid gap-2">
+                                    <button type="submit" class="btn btn-primary">提交 (已上传3张照片)</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 照片管理页面 -->
+        <div class="demo-page">
+            <div class="demo-page-title">照片管理页面</div>
+            <div class="row justify-content-center">
+                <div class="col-md-10">
+                    <div class="text-center mb-5">
+                        <i class="bi bi-images" style="font-size: 48px; color: var(--apple-blue);"></i>
+                        <h2 class="mt-3" style="font-weight: 500;">照片管理</h2>
+                        <p class="text-muted" style="font-size: 15px;">查看和管理您上传的照片</p>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="text-center mb-4">
+                                <ul class="nav nav-tabs" id="myTab" role="tablist">
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link active" id="orders-tab" data-bs-toggle="tab" data-bs-target="#orders" type="button" role="tab" aria-controls="orders" aria-selected="true">我的订单</button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link" id="photos-tab" data-bs-toggle="tab" data-bs-target="#photos" type="button" role="tab" aria-controls="photos" aria-selected="false">所有照片</button>
+                                    </li>
+                                </ul>
+                            </div>
+                            
+                            <div class="tab-content" id="myTabContent">
+                                <div class="tab-pane fade show active" id="orders" role="tabpanel" aria-labelledby="orders-tab">
+                                    <div class="mb-4">
+                                        <input type="text" class="form-control" placeholder="搜索订单号...">
+                                    </div>
+                                    
+                                    <div class="order-card card">
+                                        <div class="card-body">
+                                            <div class="order-header">
+                                                <h5 style="font-weight: 500;">订单号: 123456789</h5>
+                                                <span class="badge badge-custom">处理中</span>
+                                            </div>
+                                            <div style="color: var(--apple-gray); font-size: 14px;">上传时间: 2023-03-13 10:30</div>
+                                            <div class="order-photos">
+                                                <img src="https://picsum.photos/id/237/300/300" alt="照片" class="order-photo">
+                                                <img src="https://picsum.photos/id/238/300/300" alt="照片" class="order-photo">
+                                                <img src="https://picsum.photos/id/239/300/300" alt="照片" class="order-photo">
+                                                <div class="d-flex align-items-center justify-content-center" style="width: 80px; height: 80px; background: var(--apple-light-bg); border-radius: var(--apple-border-radius); color: var(--apple-gray);">
+                                                    <span>+5</span>
+                                                </div>
+                                            </div>
+                                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                                <div>
+                                                    <span class="badge bg-light text-dark me-2" style="border: 1px solid var(--apple-light-gray);">3寸</span>
+                                                    <span style="font-size: 14px; color: var(--apple-gray);">共8张照片</span>
+                                                </div>
+                                                <button class="btn btn-sm btn-outline-primary">查看详情</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="order-card card">
+                                        <div class="card-body">
+                                            <div class="order-header">
+                                                <h5 style="font-weight: 500;">订单号: 987654321</h5>
+                                                <span class="badge badge-custom badge-success">已完成</span>
+                                            </div>
+                                            <div style="color: var(--apple-gray); font-size: 14px;">上传时间: 2023-03-10 15:45</div>
+                                            <div class="order-photos">
+                                                <img src="https://picsum.photos/id/240/300/300" alt="照片" class="order-photo">
+                                                <img src="https://picsum.photos/id/241/300/300" alt="照片" class="order-photo">
+                                                <img src="https://picsum.photos/id/242/300/300" alt="照片" class="order-photo">
+                                                <div class="d-flex align-items-center justify-content-center" style="width: 80px; height: 80px; background: var(--apple-light-bg); border-radius: var(--apple-border-radius); color: var(--apple-gray);">
+                                                    <span>+12</span>
+                                                </div>
+                                            </div>
+                                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                                <div>
+                                                    <span class="badge bg-light text-dark me-2" style="border: 1px solid var(--apple-light-gray);">5寸</span>
+                                                    <span class="badge bg-light text-dark me-2" style="border: 1px solid var(--apple-light-gray);">7寸</span>
+                                                    <span style="font-size: 14px; color: var(--apple-gray);">共15张照片</span>
+                                                </div>
+                                                <button class="btn btn-sm btn-outline-primary">查看详情</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="tab-pane fade" id="photos" role="tabpanel" aria-labelledby="photos-tab">
+                                    <div class="mb-4">
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3 mb-md-0">
+                                                <input type="text" class="form-control" placeholder="搜索照片...">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <select class="form-select">
+                                                    <option selected>所有尺寸</option>
+                                                    <option>3寸</option>
+                                                    <option>4寸</option>
+                                                    <option>5寸</option>
+                                                    <option>6寸</option>
+                                                    <option>7寸</option>
+                                                    <option>8寸</option>
+                                                    <option>10寸</option>
+                                                    <option>A4</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="photo-grid">
+                                        <div class="photo-item">
+                                            <img src="https://picsum.photos/id/237/300/300" alt="照片">
+                                            <div class="photo-actions">
+                                                <div class="photo-action-btn">
+                                                    <i class="bi bi-eye"></i>
+                                                </div>
+                                                <div class="photo-action-btn">
+                                                    <i class="bi bi-download"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="photo-item">
+                                            <img src="https://picsum.photos/id/238/300/300" alt="照片">
+                                            <div class="photo-actions">
+                                                <div class="photo-action-btn">
+                                                    <i class="bi bi-eye"></i>
+                                                </div>
+                                                <div class="photo-action-btn">
+                                                    <i class="bi bi-download"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="photo-item">
+                                            <img src="https://picsum.photos/id/239/300/300" alt="照片">
+                                            <div class="photo-actions">
+                                                <div class="photo-action-btn">
+                                                    <i class="bi bi-eye"></i>
+                                                </div>
+                                                <div class="photo-action-btn">
+                                                    <i class="bi bi-download"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="photo-item">
+                                            <img src="https://picsum.photos/id/240/300/300" alt="照片">
+                                            <div class="photo-actions">
+                                                <div class="photo-action-btn">
+                                                    <i class="bi bi-eye"></i>
+                                                </div>
+                                                <div class="photo-action-btn">
+                                                    <i class="bi bi-download"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="photo-item">
+                                            <img src="https://picsum.photos/id/241/300/300" alt="照片">
+                                            <div class="photo-actions">
+                                                <div class="photo-action-btn">
+                                                    <i class="bi bi-eye"></i>
+                                                </div>
+                                                <div class="photo-action-btn">
+                                                    <i class="bi bi-download"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="photo-item">
+                                            <img src="https://picsum.photos/id/242/300/300" alt="照片">
+                                            <div class="photo-actions">
+                                                <div class="photo-action-btn">
+                                                    <i class="bi bi-eye"></i>
+                                                </div>
+                                                <div class="photo-action-btn">
+                                                    <i class="bi bi-download"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="photo-item">
+                                            <img src="https://picsum.photos/id/243/300/300" alt="照片">
+                                            <div class="photo-actions">
+                                                <div class="photo-action-btn">
+                                                    <i class="bi bi-eye"></i>
+                                                </div>
+                                                <div class="photo-action-btn">
+                                                    <i class="bi bi-download"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="photo-item">
+                                            <img src="https://picsum.photos/id/244/300/300" alt="照片">
+                                            <div class="photo-actions">
+                                                <div class="photo-action-btn">
+                                                    <i class="bi bi-eye"></i>
+                                                </div>
+                                                <div class="photo-action-btn">
+                                                    <i class="bi bi-download"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="d-flex justify-content-center">
+                                        <nav aria-label="Page navigation">
+                                            <ul class="pagination">
+                                                <li class="page-item disabled">
+                                                    <a class="page-link" href="#" aria-label="Previous">
+                                                        <i class="bi bi-chevron-left"></i>
+                                                    </a>
+                                                </li>
+                                                <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                                                <li class="page-item"><a class="page-link" href="#">2</a></li>
+                                                <li class="page-item"><a class="page-link" href="#">3</a></li>
+                                                <li class="page-item">
+                                                    <a class="page-link" href="#" aria-label="Next">
+                                                        <i class="bi bi-chevron-right"></i>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </nav>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 成功页面 -->
+        <div class="demo-page">
+            <div class="demo-page-title">成功页面</div>
+            <div class="row justify-content-center">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body text-center py-5">
+                            <i class="bi bi-check-circle success-icon"></i>
+                            <h2 style="font-weight: 500;">上传成功</h2>
+                            <p class="text-muted mb-4">您的照片已成功上传，我们将尽快为您处理</p>
+                            <div class="d-flex justify-content-center gap-3">
+                                <button class="btn btn-outline-primary">返回首页</button>
+                                <button class="btn btn-primary">查看订单</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 404页面 -->
+        <div class="demo-page">
+            <div class="demo-page-title">404页面</div>
+            <div class="row justify-content-center">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body text-center py-5">
+                            <i class="bi bi-exclamation-circle error-icon"></i>
+                            <h2 style="font-weight: 500;">页面未找到</h2>
+                            <p class="text-muted mb-4">抱歉，您访问的页面不存在或已被移除</p>
+                            <button class="btn btn-primary">返回首页</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 中转页 -->
+        <div class="demo-page">
+            <div class="demo-page-title">中转页</div>
+            <div class="row justify-content-center">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body text-center py-5">
+                            <div class="loading-spinner"></div>
+                            <h2 style="font-weight: 500;">正在处理</h2>
+                            <p class="text-muted mb-4">请稍候，我们正在处理您的请求</p>
+                            <div class="progress">
+                                <div class="progress-bar" role="progressbar" style="width: 75%" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <p style="font-size: 14px; color: var(--apple-gray);">预计剩余时间: 30秒</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 订单详情页面 -->
+        <div class="demo-page">
+            <div class="demo-page-title">订单详情页面</div>
+            <div class="row justify-content-center">
+                <div class="col-md-10">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="order-detail-header">
+                                <div>
+                                    <h4 style="font-weight: 500;">订单详情</h4>
+                                    <p style="color: var(--apple-gray); font-size: 14px;">订单号: 123456789</p>
+                                </div>
+                                <span class="badge badge-custom">处理中</span>
+                            </div>
+                            
+                            <div class="order-status-timeline">
+                                <div class="timeline-step completed">
+                                    <div class="timeline-step-icon">
+                                        <i class="bi bi-check"></i>
+                                    </div>
+                                    <div class="timeline-step-label">已下单</div>
+                                </div>
+                                <div class="timeline-step completed">
+                                    <div class="timeline-step-icon">
+                                        <i class="bi bi-check"></i>
+                                    </div>
+                                    <div class="timeline-step-label">已上传</div>
+                                </div>
+                                <div class="timeline-step active">
+                                    <div class="timeline-step-icon">
+                                        <i class="bi bi-gear"></i>
+                                    </div>
+                                    <div class="timeline-step-label">处理中</div>
+                                </div>
+                                <div class="timeline-step">
+                                    <div class="timeline-step-icon">
+                                        <i class="bi bi-check"></i>
+                                    </div>
+                                    <div class="timeline-step-label">已完成</div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="order-detail-section">
+                                        <h5 class="order-detail-section-title">照片列表</h5>
+                                        <div class="photo-grid">
+                                            <div class="photo-item">
+                                                <img src="https://picsum.photos/id/237/300/300" alt="照片">
+                                                <div class="photo-actions">
+                                                    <div class="photo-action-btn">
+                                                        <i class="bi bi-eye"></i>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="photo-item">
+                                                <img src="https://picsum.photos/id/238/300/300" alt="照片">
+                                                <div class="photo-actions">
+                                                    <div class="photo-action-btn">
+                                                        <i class="bi bi-eye"></i>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="photo-item">
+                                                <img src="https://picsum.photos/id/239/300/300" alt="照片">
+                                                <div class="photo-actions">
+                                                    <div class="photo-action-btn">
+                                                        <i class="bi bi-eye"></i>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="photo-item">
+                                                <img src="https://picsum.photos/id/240/300/300" alt="照片">
+                                                <div class="photo-actions">
+                                                    <div class="photo-action-btn">
+                                                        <i class="bi bi-eye"></i>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="photo-item">
+                                                <img src="https://picsum.photos/id/241/300/300" alt="照片">
+                                                <div class="photo-actions">
+                                                    <div class="photo-action-btn">
+                                                        <i class="bi bi-eye"></i>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="photo-item">
+                                                <img src="https://picsum.photos/id/242/300/300" alt="照片">
+                                                <div class="photo-actions">
+                                                    <div class="photo-action-btn">
+                                                        <i class="bi bi-eye"></i>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="photo-item">
+                                                <img src="https://picsum.photos/id/243/300/300" alt="照片">
+                                                <div class="photo-actions">
+                                                    <div class="photo-action-btn">
+                                                        <i class="bi bi-eye"></i>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="photo-item">
+                                                <img src="https://picsum.photos/id/244/300/300" alt="照片">
+                                                <div class="photo-actions">
+                                                    <div class="photo-action-btn">
+                                                        <i class="bi bi-eye"></i>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <div class="order-detail-section">
+                                        <h5 class="order-detail-section-title">订单信息</h5>
+                                        <div class="order-info-item">
+                                            <div class="order-info-label">订单号</div>
+                                            <div class="order-info-value">123456789</div>
+                                        </div>
+                                        <div class="order-info-item">
+                                            <div class="order-info-label">下单时间</div>
+                                            <div class="order-info-value">2023-03-13 10:30</div>
+                                        </div>
+                                        <div class="order-info-item">
+                                            <div class="order-info-label">照片尺寸</div>
+                                            <div class="order-info-value">3寸</div>
+                                        </div>
+                                        <div class="order-info-item">
+                                            <div class="order-info-label">照片数量</div>
+                                            <div class="order-info-value">8张</div>
+                                        </div>
+                                        <div class="order-info-item">
+                                            <div class="order-info-label">状态</div>
+                                            <div class="order-info-value">处理中</div>
+                                        </div>
+                                        <div class="order-info-item">
+                                            <div class="order-info-label">预计完成时间</div>
+                                            <div class="order-info-value">2023-03-14 18:00</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="order-detail-section">
+                                        <h5 class="order-detail-section-title">备注</h5>
+                                        <p style="font-size: 14px;">请帮忙调整一下照片的亮度，谢谢！</p>
+                                    </div>
+                                    
+                                    <div class="d-grid gap-2">
+                                        <button class="btn btn-outline-primary">联系客服</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 照片尺寸选择
+        document.querySelectorAll('.photo-size-option').forEach(option => {
+            option.addEventListener('click', function() {
+                this.classList.toggle('selected');
+            });
+        });
+    </script>
+</body>
+</html> 

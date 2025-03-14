@@ -542,7 +542,7 @@ const PhotoUpload = () => {
                 <div style={headerPatternStyle} />
                 <CameraOutlined style={{ fontSize: '48px', marginBottom: '16px' }} />
                 <h1 style={titleStyle}>田田洗照片</h1>
-                <p style={subtitleStyle}>支持多种尺寸照片的批量上传与裁剪</p>
+                <p style={subtitleStyle}>自己开发的一个收集工具，服务器带宽有限，上传照片请耐心等待下哦</p>
             </Header>
             <Content>
                 <div style={contentStyle}>
@@ -553,12 +553,12 @@ const PhotoUpload = () => {
                     >
                         <Form.Item
                             name="orderId"
-                            label={<span style={{ fontSize: '16px', fontWeight: 500 }}>订单号</span>}
-                            rules={[{ required: true, message: '请输入订单号' }]}
+                            label={<span style={{ fontSize: '16px', fontWeight: 500 }}>淘宝订单号</span>}
+                            rules={[{ required: true, message: '请输入淘宝订单号' }]}
                             style={formItemStyle}
                         >
                             <Input 
-                                placeholder="请输入订单号" 
+                                placeholder="请输入淘宝订单号"
                                 size="large"
                                 style={{ borderRadius: '6px' }}
                                 onChange={handleOrderIdChange}
