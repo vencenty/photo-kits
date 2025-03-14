@@ -15,11 +15,18 @@ import (
 // Minio配置
 const (
 	//MinioEndpoint  = "s3.vencenty.cn"
-	MinioEndpoint  = "s3.vencenty.cn"
-	MinioAccessKey = "IrBtP7ySGrQf82L22njM"
-	MinioSecretKey = "gFUR5eWc47yRDXVNZqwcRVPtEc1veKOPPOXGhmxh"
-	MinioUseSSL    = true
+	//MinioEndpoint  = "s3.vencenty.cn"
+	//MinioAccessKey = "IrBtP7ySGrQf82L22njM"
+	//MinioSecretKey = "gFUR5eWc47yRDXVNZqwcRVPtEc1veKOPPOXGhmxh"
+	//MinioUseSSL    = true
+	//MinioBucket    = "photos" // 你的存储桶名称，如果不存在会自动创建
+
+	MinioEndpoint  = "fn.vencenty.cn:29000"
+	MinioAccessKey = "bBSXvpLj3KZ5ZF6cBkCx"
+	MinioSecretKey = "hEo1bVqJ77UpI8ft8nCtwyFRFJmzw11R2Uex6IQA"
+	MinioUseSSL    = false
 	MinioBucket    = "photos" // 你的存储桶名称，如果不存在会自动创建
+
 )
 
 func main() {
