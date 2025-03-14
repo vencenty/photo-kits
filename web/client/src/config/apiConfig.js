@@ -4,7 +4,7 @@
  */
 
 // API基础URL
-export const API_BASE_URL = 'http://photo-kits-api.vencenty.cn';
+export const API_BASE_URL = 'https://photo-kits-api.vencenty.cn';
 
 // 导出API端点
 export const API_ENDPOINTS = {

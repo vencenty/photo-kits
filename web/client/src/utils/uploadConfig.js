@@ -2,8 +2,7 @@
  * 文件上传工具函数
  */
 
-// API基础URL - 与apiService.js中保持一致
-const API_BASE_URL = 'https://photo-kits-api.vencenty.cn';
+import { API_BASE_URL } from '../config/apiConfig';
 
 /**
  * 上传文件到服务器
@@ -74,6 +73,11 @@ export const uploadToServer = async (options) => {
         console.log(`发送上传请求到: ${url}`);
         xhr.open('POST', url);
         xhr.send(formData);
+        
+        // 注意：如果使用HTTPS但遇到证书问题，可以考虑以下解决方案：
+        // 1. 使用HTTP而不是HTTPS（如上所示）
+        // 2. 修复服务器上的证书问题
+        // 3. 在开发环境中，可以在浏览器中手动访问API URL并接受风险（不推荐用于生产环境）
         
     } catch (error) {
         onError && onError(error);

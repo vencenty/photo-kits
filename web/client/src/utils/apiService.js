@@ -3,8 +3,7 @@
  * 提供统一的API请求方法
  */
 
-// API基础URL - 可以根据环境变量或其他条件来设置
-const API_BASE_URL = 'http://photo-kits-api.vencenty.cn';
+import { API_BASE_URL } from '../config/apiConfig';
 
 /**
  * 发送GET请求
