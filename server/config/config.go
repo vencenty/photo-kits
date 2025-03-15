@@ -14,6 +14,7 @@ import (
 type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
+	Minio    MinioConfig
 }
 
 // ServerConfig 服务器配置
@@ -29,6 +30,15 @@ type DatabaseConfig struct {
 	User     string
 	Password string
 	DBName   string
+}
+
+// MinioConfig Minio对象存储配置
+type MinioConfig struct {
+	Endpoint  string
+	AccessKey string
+	SecretKey string
+	UseSSL    bool
+	Bucket    string
 }
 
 // GetDSN 获取数据库连接字符串
@@ -62,6 +72,13 @@ func LoadConfig() *Config {
 			User:     viper.GetString("database.user"),
 			Password: viper.GetString("database.password"),
 			DBName:   viper.GetString("database.dbname"),
+		},
+		Minio: MinioConfig{
+			Endpoint:  viper.GetString("minio.endpoint"),
+			AccessKey: viper.GetString("minio.access_key"),
+			SecretKey: viper.GetString("minio.secret_key"),
+			UseSSL:    viper.GetBool("minio.use_ssl"),
+			Bucket:    viper.GetString("minio.bucket"),
 		},
 	}
 
@@ -140,6 +157,19 @@ func loadFromTOML(filePath string, config *Config) error {
 				config.Database.Password = value
 			case "dbname":
 				config.Database.DBName = value
+			}
+		case "minio":
+			switch key {
+			case "endpoint":
+				config.Minio.Endpoint = value
+			case "access_key":
+				config.Minio.AccessKey = value
+			case "secret_key":
+				config.Minio.SecretKey = value
+			case "use_ssl":
+				config.Minio.UseSSL = (value == "true")
+			case "bucket":
+				config.Minio.Bucket = value
 			}
 		}
 	}

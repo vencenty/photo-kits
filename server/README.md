@@ -179,3 +179,6 @@ go build -o sync_photos cmd/sync_photos.go
 4. 同步目录是否有写入权限
 5. 网络连接是否正常（用于下载照片）
 6. 日志文件是否有详细错误信息 
+
+# Linux下编译命令
+GOARCH=amd64 GOOS=linux go build -o main 

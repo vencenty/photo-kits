@@ -10,3 +10,17 @@ port = 53824
 user = "root"
 password = "UvbGrsVVaKDDzOEF"
 dbname = "photo-kits"
+
+# Minio 配置
+[minio]
+#endpoint = "s3.vencenty.cn"
+#access_key = "IrBtP7ySGrQf82L22njM"
+#secret_key = "gFUR5eWc47yRDXVNZqwcRVPtEc1veKOPPOXGhmxh"
+#use_ssl = true
+#bucket = "user-photos"
+
+endpoint = "fn.vencenty.cn:29000"
+access_key = "aalNu8yRU2vcGwgFQ0wk"
+secret_key = "V4UQ7uWJdKQsJTwcpVht1aAK7PZK0yvDgdggdzAl"
+use_ssl = false
+bucket = "user-photos"

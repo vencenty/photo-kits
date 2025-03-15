@@ -2,6 +2,7 @@ package api
 
 import (
 	"log"
+	"photo-kits/config"
 	"photo-kits/internal/dao"
 	"photo-kits/internal/service"
 
@@ -10,7 +11,7 @@ import (
 )
 
 // SetupRouter 配置路由
-func SetupRouter() *gin.Engine {
+func SetupRouter(cfg *config.Config) *gin.Engine {
 	r := gin.Default()
 
 	// 配置CORS
@@ -39,7 +40,7 @@ func SetupRouter() *gin.Engine {
 	photoHandler := NewPhotoHandler(photoService)
 
 	// 初始化上传处理器
-	uploadHandler, err := NewUploadHandler()
+	uploadHandler, err := NewUploadHandler(cfg)
 	if err != nil {
 		log.Fatalf("初始化上传处理器失败: %v", err)
 	}

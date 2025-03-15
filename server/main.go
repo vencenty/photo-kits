@@ -25,7 +25,7 @@ func main() {
 	defer database.CloseDB()
 
 	// 设置路由
-	r := api.SetupRouter()
+	r := api.SetupRouter(cfg)
 
 	// 启动服务器
 	addr := fmt.Sprintf("0.0.0.0:%d", cfg.Server.Port)

@@ -10,20 +10,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/minio/minio-go"
-)
-
-// Minio配置
-const (
-	MinioEndpoint  = "s3.vencenty.cn"
-	MinioAccessKey = "IrBtP7ySGrQf82L22njM"
-	MinioSecretKey = "gFUR5eWc47yRDXVNZqwcRVPtEc1veKOPPOXGhmxh"
-	MinioUseSSL    = true
-	MinioBucket    = "user-photos" // 存储桶名称
+	"photo-kits/config"
 )
 
 // 初始化Minio客户端
-func initMinioClient() (*minio.Client, error) {
-	client, err := minio.New(MinioEndpoint, MinioAccessKey, MinioSecretKey, MinioUseSSL)
+func initMinioClient(cfg *config.MinioConfig) (*minio.Client, error) {
+	client, err := minio.New(cfg.Endpoint, cfg.AccessKey, cfg.SecretKey, cfg.UseSSL)
 	if err != nil {
 		return nil, err
 	}
@@ -73,24 +65,26 @@ func generateUniqueFilename(originalFilename string) string {
 // UploadHandler 文件上传处理器
 type UploadHandler struct {
 	minioClient *minio.Client
+	config      *config.MinioConfig
 }
 
 // NewUploadHandler 创建上传处理器实例
-func NewUploadHandler() (*UploadHandler, error) {
+func NewUploadHandler(cfg *config.Config) (*UploadHandler, error) {
 	// 初始化Minio客户端
-	minioClient, err := initMinioClient()
+	minioClient, err := initMinioClient(&cfg.Minio)
 	if err != nil {
 		return nil, err
 	}
 
 	// 确保存储桶存在
-	//err = ensureBucketExists(minioClient, MinioBucket)
+	//err = ensureBucketExists(minioClient, cfg.Minio.Bucket)
 	//if err != nil {
 	//	return nil, err
 	//}
 
 	return &UploadHandler{
 		minioClient: minioClient,
+		config:      &cfg.Minio,
 	}, nil
 }
 
@@ -138,7 +132,7 @@ func (h *UploadHandler) UploadFile(c *gin.Context) {
 	}
 
 	// 执行上传
-	n, err := h.minioClient.PutObject(MinioBucket, objectName, src, file.Size, minio.PutObjectOptions{
+	n, err := h.minioClient.PutObject(h.config.Bucket, objectName, src, file.Size, minio.PutObjectOptions{
 		ContentType: contentType,
 	})
 	if err != nil {
@@ -150,7 +144,7 @@ func (h *UploadHandler) UploadFile(c *gin.Context) {
 	}
 
 	// 构建文件URL
-	fileURL := fmt.Sprintf("https://%s/%s/%s", MinioEndpoint, MinioBucket, objectName)
+	fileURL := fmt.Sprintf("http://%s/%s/%s", h.config.Endpoint, h.config.Bucket, objectName)
 
 	// 返回成功信息
 	c.JSON(http.StatusOK, gin.H{
