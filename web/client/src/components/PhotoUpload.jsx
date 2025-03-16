@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Form, Input, Checkbox, Upload, Button, message, Card, Layout, Modal, Statistic } from 'antd';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Form, Input, Checkbox, Upload, Button, message, Card, Layout, Modal, Statistic, List, Spin } from 'antd';
 import { UploadOutlined, DeleteOutlined, CameraOutlined, RotateLeftOutlined, RotateRightOutlined, ZoomInOutlined, ZoomOutOutlined, SwapOutlined, EyeOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import ReactCrop from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
@@ -17,12 +17,18 @@ const PhotoUpload = () => {
     const [selectedSizes, setSelectedSizes] = useState([]);
     const [fileList, setFileList] = useState({});
     const [orderIdEntered, setOrderIdEntered] = useState(false);
+    const [receiverNameEntered, setReceiverNameEntered] = useState(false); // 新增收货人姓名状态
+    const [formReady, setFormReady] = useState(false); // 表单是否准备好（订单号和收货人姓名都已填写）
     const [uploading, setUploading] = useState(false); // 是否有文件正在上传
     const [totalPhotos, setTotalPhotos] = useState(0); // 所有尺寸的照片总数
     const navigate = useNavigate(); // 用于页面导航
+    const [uploadQueue, setUploadQueue] = useState([]); // 上传队列
+    const [processingQueue, setProcessingQueue] = useState(false); // 是否正在处理队列
+    const [uploadStats, setUploadStats] = useState({ total: 0, completed: 0, failed: 0 }); // 上传统计
+    const [renderCount, setRenderCount] = useState(20); // 初始渲染数量限制
 
     // 照片尺寸配置
-    const photoSizes = [
+    const photoSizes = useMemo(() => [
         { label: '3寸', value: '3inch', ratio: 3/2 },
         { label: '4寸', value: '4inch', ratio: 3/4 },
         { label: '5寸', value: '5inch', ratio: 3/2 },
@@ -31,7 +37,7 @@ const PhotoUpload = () => {
         { label: '8寸', value: '8inch', ratio: 4/3 },
         { label: '10寸', value: '10inch', ratio: 10/8 },
         { label: 'A4', value: 'A4', ratio: 210/297 }
-    ];
+    ], []);
 
     // 计算所有尺寸的照片总数
     useEffect(() => {
@@ -45,10 +51,21 @@ const PhotoUpload = () => {
         setTotalPhotos(count);
     }, [fileList]);
 
+    // 检查表单是否准备好
+    useEffect(() => {
+        setFormReady(orderIdEntered && receiverNameEntered);
+    }, [orderIdEntered, receiverNameEntered]);
+
     // 处理订单号变化
     const handleOrderIdChange = (e) => {
         const value = e.target.value;
         setOrderIdEntered(!!value.trim());
+    };
+
+    // 处理收货人姓名变化
+    const handleReceiverNameChange = (e) => {
+        const value = e.target.value;
+        setReceiverNameEntered(!!value.trim());
     };
 
     // 处理尺寸选择变化
@@ -64,7 +81,7 @@ const PhotoUpload = () => {
     };
 
     // 获取尺寸对应的比例配置
-    const getSizeRatios = (sizeValue) => {
+    const getSizeRatios = useCallback((sizeValue) => {
         const sizeConfig = {
             '3inch': { landscape: 3/2, portrait: 2/3 },
             '4inch': { landscape: 4/3, portrait: 3/4 },
@@ -76,7 +93,7 @@ const PhotoUpload = () => {
             'A4': { landscape: 297/210, portrait: 210/297 }
         };
         return sizeConfig[sizeValue] || { landscape: 3/2, portrait: 2/3 };
-    };
+    }, []);
 
     // 处理单个图片的加载和处理
     const processImage = async (file, size, customUid = null) => {
@@ -113,6 +130,163 @@ const PhotoUpload = () => {
         }
         return true;
     };
+
+    // 处理上传队列
+    useEffect(() => {
+        const processQueue = async () => {
+            if (uploadQueue.length === 0 || processingQueue) {
+                return;
+            }
+
+            setProcessingQueue(true);
+            
+            // 从队列中取出一批文件进行处理（批量处理）
+            const batchSize = 5; // 每批处理的文件数量
+            const batch = uploadQueue.slice(0, batchSize);
+            const remaining = uploadQueue.slice(batchSize);
+            
+            setUploadQueue(remaining);
+            
+            // 并行处理这一批文件
+            await Promise.all(batch.map(item => processQueueItem(item)));
+            
+            setProcessingQueue(false);
+        };
+        
+        processQueue();
+    }, [uploadQueue, processingQueue]);
+
+    // 处理队列中的单个项目
+    const processQueueItem = async (item) => {
+        const { file, size, fileId, onSuccess, onError, onProgress } = item;
+        
+        try {
+            // 上传到服务器
+            const key = `${form.getFieldValue('orderId')}/${size}/${file.name}`;
+            
+            await new Promise((resolve, reject) => {
+                uploadToServer({
+                    file: file,
+                    key: key,
+                    onProgress: (progressData) => {
+                        const percent = progressData.percent * 100;
+                        onProgress({ percent });
+                        
+                        // 使用函数式更新确保获取最新的fileList状态
+                        setFileList(prevFileList => {
+                            const updatedFileList = { ...prevFileList };
+                            const fileIndex = updatedFileList[size]?.findIndex(item => item.uid === fileId);
+                            if (fileIndex > -1) {
+                                updatedFileList[size][fileIndex].percent = percent;
+                                return updatedFileList;
+                            }
+                            return prevFileList;
+                        });
+                    },
+                    onSuccess: (data) => {
+                        // 获取上传后的URL
+                        const imageUrl = data.url;
+                        
+                        // 使用函数式更新确保获取最新的fileList状态
+                        setFileList(prevFileList => {
+                            const updatedFileList = { ...prevFileList };
+                            const fileIndex = updatedFileList[size]?.findIndex(item => item.uid === fileId);
+                            if (fileIndex > -1) {
+                                updatedFileList[size][fileIndex].status = 'done';
+                                updatedFileList[size][fileIndex].cosUrl = imageUrl; // 保存服务器URL用于提交
+                                // 不更新url字段，继续使用本地预览
+                                
+                                // 确保成功回调只传递正确的数据
+                                onSuccess({
+                                    ...data,
+                                    uid: fileId,
+                                    name: file.name,
+                                    status: 'done',
+                                    url: updatedFileList[size][fileIndex].localUrl, // 使用本地URL
+                                    cosUrl: imageUrl
+                                });
+                                
+                                return updatedFileList;
+                            } else {
+                                // 如果找不到对应的文件，可能是状态已经被清除，重新添加
+                                const newFile = {
+                                    uid: fileId,
+                                    name: file.name,
+                                    status: 'done',
+                                    url: item.localUrl, // 使用本地URL
+                                    cosUrl: imageUrl,
+                                    size: size
+                                };
+                                if (!updatedFileList[size]) {
+                                    updatedFileList[size] = [];
+                                }
+                                updatedFileList[size] = [...updatedFileList[size], newFile];
+                                
+                                onSuccess(newFile);
+                                return updatedFileList;
+                            }
+                        });
+                        
+                        // 更新上传统计
+                        setUploadStats(prev => ({
+                            ...prev,
+                            completed: prev.completed + 1
+                        }));
+                        
+                        resolve();
+                    },
+                    onError: (err) => {
+                        message.error(`上传失败: ${file.name}`);
+                        
+                        // 使用函数式更新确保获取最新的fileList状态
+                        setFileList(prevFileList => {
+                            const updatedFileList = { ...prevFileList };
+                            const fileIndex = updatedFileList[size]?.findIndex(item => item.uid === fileId);
+                            if (fileIndex > -1) {
+                                updatedFileList[size][fileIndex].status = 'error';
+                                return updatedFileList;
+                            }
+                            return prevFileList;
+                        });
+                        
+                        onError(err);
+                        
+                        // 更新上传统计
+                        setUploadStats(prev => ({
+                            ...prev,
+                            failed: prev.failed + 1
+                        }));
+                        
+                        reject(err);
+                    }
+                });
+            });
+        } catch (error) {
+            console.error(`处理队列项目失败:`, error);
+            // 更新上传统计
+            setUploadStats(prev => ({
+                ...prev,
+                failed: prev.failed + 1
+            }));
+        }
+    };
+
+    // 检查上传状态
+    useEffect(() => {
+        const checkUploadStatus = () => {
+            const { total, completed, failed } = uploadStats;
+            if (total > 0 && completed + failed === total) {
+                setUploading(false);
+                if (failed === 0) {
+                    message.success(`所有文件上传完成！`);
+                } else {
+                    message.warning(`上传完成，但有 ${failed} 个文件上传失败`);
+                }
+            }
+        };
+        
+        checkUploadStatus();
+    }, [uploadStats]);
 
     // 处理文件上传
     const handleUpload = (size) => ({
@@ -186,119 +360,23 @@ const PhotoUpload = () => {
                     return newFileList;
                 });
                 
-                // 上传到服务器
-                const key = `${form.getFieldValue('orderId')}/${size}/${file.name}`;
+                // 更新上传统计
+                setUploadStats(prev => ({
+                    ...prev,
+                    total: prev.total + 1
+                }));
                 
-                uploadToServer({
-                    file: file,
-                    key: key,
-                    onProgress: (progressData) => {
-                        // 更新上传进度
-                        const percent = progressData.percent * 100;
-                        onProgress({ percent });
-                        
-                        // 使用函数式更新确保获取最新的fileList状态
-                        setFileList(prevFileList => {
-                            const updatedFileList = { ...prevFileList };
-                            const fileIndex = updatedFileList[size]?.findIndex(item => item.uid === fileId);
-                            if (fileIndex > -1) {
-                                updatedFileList[size][fileIndex].percent = percent;
-                                return updatedFileList;
-                            }
-                            return prevFileList;
-                        });
-                    },
-                    onSuccess: (data) => {
-                        // 获取上传后的URL
-                        const imageUrl = data.url;
-                        
-                        // 使用函数式更新确保获取最新的fileList状态
-                        setFileList(prevFileList => {
-                            const updatedFileList = { ...prevFileList };
-                            const fileIndex = updatedFileList[size]?.findIndex(item => item.uid === fileId);
-                            if (fileIndex > -1) {
-                                updatedFileList[size][fileIndex].status = 'done';
-                                updatedFileList[size][fileIndex].cosUrl = imageUrl; // 保存服务器URL用于提交
-                                // 不更新url字段，继续使用本地预览
-                                
-                                // 确保成功回调只传递正确的数据
-                                onSuccess({
-                                    ...data,
-                                    uid: fileId,
-                                    name: file.name,
-                                    status: 'done',
-                                    url: updatedFileList[size][fileIndex].localUrl, // 使用本地URL
-                                    cosUrl: imageUrl
-                                });
-                                
-                                return updatedFileList;
-                            } else {
-                                // 如果找不到对应的文件，可能是状态已经被清除，重新添加
-                                const newFile = {
-                                    uid: fileId,
-                                    name: file.name,
-                                    status: 'done',
-                                    url: processedFile.localUrl, // 使用本地URL
-                                    cosUrl: imageUrl,
-                                    size: size
-                                };
-                                if (!updatedFileList[size]) {
-                                    updatedFileList[size] = [];
-                                }
-                                updatedFileList[size] = [...updatedFileList[size], newFile];
-                                
-                                onSuccess(newFile);
-                                return updatedFileList;
-                            }
-                        });
-                        
-                        // 检查是否所有文件都上传完成 - 使用最新的状态检查
-                        setTimeout(() => {
-                            setFileList(prevFileList => {
-                                const allDone = Object.values(prevFileList).every(sizeFiles => 
-                                    sizeFiles.every(file => file.status !== 'uploading')
-                                );
-                                
-                                if (allDone) {
-                                    setUploading(false);
-                                }
-                                
-                                return prevFileList; // 不需要更新状态，只是检查
-                            });
-                        }, 100);
-                    },
-                    onError: (err) => {
-                        message.error(`上传失败: ${file.name}`);
-                        
-                        // 使用函数式更新确保获取最新的fileList状态
-                        setFileList(prevFileList => {
-                            const updatedFileList = { ...prevFileList };
-                            const fileIndex = updatedFileList[size]?.findIndex(item => item.uid === fileId);
-                            if (fileIndex > -1) {
-                                updatedFileList[size][fileIndex].status = 'error';
-                                return updatedFileList;
-                            }
-                            return prevFileList;
-                        });
-                        
-                        onError(err);
-                        
-                        // 检查是否所有文件都处理完成 - 使用最新的状态检查
-                        setTimeout(() => {
-                            setFileList(prevFileList => {
-                                const allProcessed = Object.values(prevFileList).every(sizeFiles => 
-                                    sizeFiles.every(file => file.status !== 'uploading')
-                                );
-                                
-                                if (allProcessed) {
-                                    setUploading(false);
-                                }
-                                
-                                return prevFileList; // 不需要更新状态，只是检查
-                            });
-                        }, 100);
-                    }
-                });
+                // 添加到上传队列，而不是立即上传
+                setUploadQueue(prev => [...prev, {
+                    file,
+                    size,
+                    fileId,
+                    localUrl: processedFile.localUrl,
+                    onSuccess,
+                    onError,
+                    onProgress
+                }]);
+                
             } catch (error) {
                 message.error(`处理图片 ${file.name} 失败`);
                 onError(error);
@@ -373,6 +451,7 @@ const PhotoUpload = () => {
             // 构建符合要求的新数据结构
             const formData = {
                 order_sn: values.orderId,
+                receiver_name: values.receiverName, // 添加收货人姓名
                 remark: values.remark,
                 photos: []
             };
@@ -564,6 +643,141 @@ const PhotoUpload = () => {
         }
     };
 
+    // 优化渲染 - 只渲染有限数量的文件
+    const renderFileList = (size) => {
+        const files = fileList[size] || [];
+        const totalFiles = files.length;
+        
+        // 如果文件数量少，直接渲染全部
+        if (totalFiles <= renderCount) {
+            return (
+                <Upload
+                    listType="picture-card"
+                    fileList={files}
+                    {...handleUpload(size)}
+                    onPreview={(file) => onPreview(file, size)}
+                    onChange={(info) => handleChange(size, info)}
+                    onRemove={(file) => handleRemove(file, size)}
+                    multiple={true}
+                    directory={false}
+                    customRequest={handleUpload(size).customRequest}
+                    disabled={!formReady}
+                >
+                    {(files.length || 0) >= 1000 ? null : (
+                        <div>
+                            <UploadOutlined style={{ fontSize: '24px' }} />
+                            <div style={{ marginTop: 8 }}>
+                                点击或拖拽上传
+                                <br />
+                                <small style={{ color: '#999' }}>
+                                    支持多选或拖拽多个文件
+                                </small>
+                            </div>
+                        </div>
+                    )}
+                </Upload>
+            );
+        }
+        
+        // 如果文件数量多，使用虚拟列表
+        const visibleFiles = files.slice(0, renderCount);
+        const hiddenCount = totalFiles - renderCount;
+        
+        return (
+            <div>
+                <Upload
+                    listType="picture-card"
+                    fileList={visibleFiles}
+                    {...handleUpload(size)}
+                    onPreview={(file) => onPreview(file, size)}
+                    onChange={(info) => handleChange(size, info)}
+                    onRemove={(file) => handleRemove(file, size)}
+                    multiple={true}
+                    directory={false}
+                    customRequest={handleUpload(size).customRequest}
+                    disabled={!formReady}
+                >
+                    {(files.length || 0) >= 1000 ? null : (
+                        <div>
+                            <UploadOutlined style={{ fontSize: '24px' }} />
+                            <div style={{ marginTop: 8 }}>
+                                点击或拖拽上传
+                                <br />
+                                <small style={{ color: '#999' }}>
+                                    支持多选或拖拽多个文件
+                                </small>
+                            </div>
+                        </div>
+                    )}
+                </Upload>
+                
+                {hiddenCount > 0 && (
+                    <div style={{ 
+                        textAlign: 'center', 
+                        padding: '12px', 
+                        background: '#f9f9f9',
+                        borderRadius: '8px',
+                        marginTop: '12px'
+                    }}>
+                        <Button 
+                            type="link" 
+                            onClick={() => setRenderCount(prev => prev + 20)}
+                        >
+                            显示更多（还有 {hiddenCount} 张未显示）
+                        </Button>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    // 上传进度指示器
+    const renderUploadProgress = () => {
+        const { total, completed, failed } = uploadStats;
+        const inProgress = total - completed - failed;
+        
+        if (total === 0) return null;
+        
+        return (
+            <div style={{ 
+                marginTop: '16px', 
+                padding: '16px', 
+                background: '#f0f8ff', 
+                borderRadius: '8px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <span>上传进度：{completed + failed} / {total}</span>
+                    <span>{Math.round((completed + failed) / total * 100)}%</span>
+                </div>
+                <div style={{ 
+                    height: '8px', 
+                    background: '#e6e6e6', 
+                    borderRadius: '4px', 
+                    overflow: 'hidden' 
+                }}>
+                    <div style={{ 
+                        width: `${(completed + failed) / total * 100}%`, 
+                        height: '100%', 
+                        background: failed > 0 ? 'linear-gradient(90deg, #52c41a, #faad14)' : '#52c41a',
+                        transition: 'width 0.3s ease'
+                    }} />
+                </div>
+                <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    marginTop: '8px',
+                    fontSize: '12px',
+                    color: '#666'
+                }}>
+                    <span>成功: {completed}</span>
+                    <span>失败: {failed}</span>
+                    <span>进行中: {inProgress}</span>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <Layout style={layoutStyle}>
             <Header style={headerStyle}>
@@ -579,6 +793,21 @@ const PhotoUpload = () => {
                         layout="vertical"
                         onFinish={handleSubmit}
                     >
+                        {/* 收货人姓名字段 */}
+                        <Form.Item
+                            name="receiverName"
+                            label={<span style={{ fontSize: '16px', fontWeight: 500 }}>收货人姓名</span>}
+                            rules={[{ required: true, message: '请输入收货人姓名' }]}
+                            style={formItemStyle}
+                        >
+                            <Input 
+                                placeholder="请输入收货人姓名"
+                                size="large"
+                                style={{ borderRadius: '6px' }}
+                                onChange={handleReceiverNameChange}
+                            />
+                        </Form.Item>
+
                         <Form.Item
                             name="orderId"
                             label={<span style={{ fontSize: '16px', fontWeight: 500 }}>淘宝订单号</span>}
@@ -598,7 +827,7 @@ const PhotoUpload = () => {
                             label={<span style={{ fontSize: '16px', fontWeight: 500 }}>照片尺寸</span>}
                             rules={[{ required: true, message: '请选择照片尺寸' }]}
                             style={formItemStyle}
-                            extra={!orderIdEntered ? <span style={{ color: '#ff4d4f' }}>请先填写订单号，然后再选择照片尺寸</span> : null}
+                            extra={!formReady ? <span style={{ color: '#ff4d4f' }}>请先填写收货人姓名和订单号，然后再选择照片尺寸</span> : null}
                         >
                             <div style={{ 
                                 padding: '16px 24px', 
@@ -609,14 +838,14 @@ const PhotoUpload = () => {
                                 <Checkbox.Group 
                                     onChange={handleSizeChange}
                                     style={checkboxGroupStyle}
-                                    disabled={!orderIdEntered}
+                                    disabled={!formReady}
                                 >
                                     {photoSizes.map(size => (
                                         <Checkbox 
                                             key={size.value} 
                                             value={size.value}
                                             style={checkboxStyle}
-                                            disabled={!orderIdEntered}
+                                            disabled={!formReady}
                                         >
                                             {size.label}
                                         </Checkbox>
@@ -624,6 +853,9 @@ const PhotoUpload = () => {
                                 </Checkbox.Group>
                             </div>
                         </Form.Item>
+
+                        {/* 上传进度指示器 */}
+                        {uploading && renderUploadProgress()}
 
                         {selectedSizes.map(size => (
                             <Form.Item key={size} style={formItemStyle}>
@@ -642,31 +874,7 @@ const PhotoUpload = () => {
                                         padding: '16px 24px'
                                     }}
                                 >
-                                    <Upload
-                                        listType="picture-card"
-                                        fileList={fileList[size] || []}
-                                        {...handleUpload(size)}
-                                        onPreview={(file) => onPreview(file, size)}
-                                        onChange={(info) => handleChange(size, info)}
-                                        onRemove={(file) => handleRemove(file, size)}
-                                        multiple={true}
-                                        directory={false}
-                                        customRequest={handleUpload(size).customRequest}
-                                        disabled={!orderIdEntered}
-                                    >
-                                        {(fileList[size]?.length || 0) >= 1000 ? null : (
-                                            <div>
-                                                <UploadOutlined style={{ fontSize: '24px' }} />
-                                                <div style={{ marginTop: 8 }}>
-                                                    点击或拖拽上传
-                                                    <br />
-                                                    <small style={{ color: '#999' }}>
-                                                        支持多选或拖拽多个文件
-                                                    </small>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </Upload>
+                                    {renderFileList(size)}
                                     <div style={{ 
                                         marginTop: 16,
                                         padding: '12px 20px',
