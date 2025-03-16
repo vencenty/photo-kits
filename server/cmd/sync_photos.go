@@ -53,7 +53,7 @@ const SyncDir = "~/syncData"
 
 // 默认配置
 var defaultConfig = SyncConfig{
-	Interval:      1,  // 默认1分钟同步一次（仅用于测试）
+	Interval:      10, // 默认1分钟同步一次（仅用于测试）
 	MaxWorkers:    5,  // 默认5个订单处理协程
 	MaxPhotoTasks: 10, // 默认10个照片处理协程
 }
@@ -315,7 +315,7 @@ func loadConfig() (*Config, error) {
 
 // 连接数据库
 func connectDB(dbConfig DatabaseConfig) (*gorm.DB, error) {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=60s",
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 		dbConfig.User, dbConfig.Password, dbConfig.Host, dbConfig.Port, dbConfig.DBName)
 
 	// 配置GORM日志
