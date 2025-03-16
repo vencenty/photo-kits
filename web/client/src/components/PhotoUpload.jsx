@@ -88,7 +88,8 @@ const PhotoUpload = () => {
                         uid: customUid || `-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                         name: file.name,
                         status: 'done',
-                        url: reader.result,
+                        url: reader.result, // 本地预览URL
+                        localUrl: reader.result, // 保存本地预览URL
                         size: size,
                         originalFile: file
                     });
@@ -150,41 +151,40 @@ const PhotoUpload = () => {
                 const fileId = `-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                 
                 // 先处理图片获取预览
-                const processedFile = await processImage(file, size);
-                processedFile.uid = fileId; // 确保使用同一个唯一ID
+                const processedFile = await processImage(file, size, fileId);
                 
-                const newFileList = { ...fileList };
-                if (!newFileList[size]) {
-                    newFileList[size] = [];
-                }
-                
-                if (newFileList[size].length >= 1000) {
-                    message.error('已达到1000张上限！');
-                    onError(new Error('已达到上传上限'));
-                    setUploading(false);
-                    return;
-                }
+                // 使用函数式更新确保获取最新的fileList状态
+                setFileList(prevFileList => {
+                    const newFileList = { ...prevFileList };
+                    if (!newFileList[size]) {
+                        newFileList[size] = [];
+                    }
+                    
+                    if (newFileList[size].length >= 1000) {
+                        message.error('已达到1000张上限！');
+                        onError(new Error('已达到上传上限'));
+                        setUploading(false);
+                        return prevFileList; // 不更新状态
+                    }
 
-                // 检查是否已经存在相同的文件
-                const isDuplicate = newFileList[size].some(item => 
-                    item.name === processedFile.name && 
-                    item.status === 'done'
-                );
-                
-                if (isDuplicate) {
-                    message.warning(`${file.name} 已经存在，请勿重复上传`);
-                    onError(new Error('文件已存在'));
-                    setUploading(false);
-                    return;
-                }
-                
-                // 添加到本地预览列表 - 确保只添加一次
-                const existingIndex = newFileList[size].findIndex(item => item.uid === fileId);
-                if (existingIndex === -1) {
-                    processedFile.status = 'uploading';
-                    newFileList[size].push(processedFile);
-                    setFileList(newFileList);
-                }
+                    // 检查是否已经存在相同的文件
+                    const isDuplicate = newFileList[size].some(item => 
+                        item.name === processedFile.name && 
+                        item.status === 'done'
+                    );
+                    
+                    if (isDuplicate) {
+                        message.warning(`${file.name} 已经存在，请勿重复上传`);
+                        onError(new Error('文件已存在'));
+                        setUploading(false);
+                        return prevFileList; // 不更新状态
+                    }
+                    
+                    // 添加到本地预览列表 - 立即显示本地预览
+                    processedFile.status = 'uploading'; // 设置为上传中状态
+                    newFileList[size] = [...(newFileList[size] || []), processedFile];
+                    return newFileList;
+                });
                 
                 // 上传到服务器
                 const key = `${form.getFieldValue('orderId')}/${size}/${file.name}`;
@@ -197,80 +197,106 @@ const PhotoUpload = () => {
                         const percent = progressData.percent * 100;
                         onProgress({ percent });
                         
-                        // 更新文件列表中的进度
-                        const updatedFileList = { ...fileList };
-                        const fileIndex = updatedFileList[size].findIndex(item => item.uid === fileId);
-                        if (fileIndex > -1) {
-                            updatedFileList[size][fileIndex].percent = percent;
-                            setFileList(updatedFileList);
-                        }
+                        // 使用函数式更新确保获取最新的fileList状态
+                        setFileList(prevFileList => {
+                            const updatedFileList = { ...prevFileList };
+                            const fileIndex = updatedFileList[size]?.findIndex(item => item.uid === fileId);
+                            if (fileIndex > -1) {
+                                updatedFileList[size][fileIndex].percent = percent;
+                                return updatedFileList;
+                            }
+                            return prevFileList;
+                        });
                     },
                     onSuccess: (data) => {
                         // 获取上传后的URL
                         const imageUrl = data.url;
                         
-                        // 更新文件状态和URL
-                        const updatedFileList = { ...fileList };
-                        const fileIndex = updatedFileList[size].findIndex(item => item.uid === fileId);
-                        if (fileIndex > -1) {
-                            updatedFileList[size][fileIndex].status = 'done';
-                            updatedFileList[size][fileIndex].url = imageUrl;
-                            updatedFileList[size][fileIndex].cosUrl = imageUrl;
-                            setFileList(updatedFileList);
-                            
-                            // 确保成功回调只传递正确的数据
-                            onSuccess({
-                                ...data,
-                                uid: fileId,
-                                name: file.name,
-                                status: 'done',
-                                url: imageUrl
+                        // 使用函数式更新确保获取最新的fileList状态
+                        setFileList(prevFileList => {
+                            const updatedFileList = { ...prevFileList };
+                            const fileIndex = updatedFileList[size]?.findIndex(item => item.uid === fileId);
+                            if (fileIndex > -1) {
+                                updatedFileList[size][fileIndex].status = 'done';
+                                updatedFileList[size][fileIndex].cosUrl = imageUrl; // 保存服务器URL用于提交
+                                // 不更新url字段，继续使用本地预览
+                                
+                                // 确保成功回调只传递正确的数据
+                                onSuccess({
+                                    ...data,
+                                    uid: fileId,
+                                    name: file.name,
+                                    status: 'done',
+                                    url: updatedFileList[size][fileIndex].localUrl, // 使用本地URL
+                                    cosUrl: imageUrl
+                                });
+                                
+                                return updatedFileList;
+                            } else {
+                                // 如果找不到对应的文件，可能是状态已经被清除，重新添加
+                                const newFile = {
+                                    uid: fileId,
+                                    name: file.name,
+                                    status: 'done',
+                                    url: processedFile.localUrl, // 使用本地URL
+                                    cosUrl: imageUrl,
+                                    size: size
+                                };
+                                if (!updatedFileList[size]) {
+                                    updatedFileList[size] = [];
+                                }
+                                updatedFileList[size] = [...updatedFileList[size], newFile];
+                                
+                                onSuccess(newFile);
+                                return updatedFileList;
+                            }
+                        });
+                        
+                        // 检查是否所有文件都上传完成 - 使用最新的状态检查
+                        setTimeout(() => {
+                            setFileList(prevFileList => {
+                                const allDone = Object.values(prevFileList).every(sizeFiles => 
+                                    sizeFiles.every(file => file.status !== 'uploading')
+                                );
+                                
+                                if (allDone) {
+                                    setUploading(false);
+                                }
+                                
+                                return prevFileList; // 不需要更新状态，只是检查
                             });
-                        } else {
-                            // 如果找不到对应的文件，可能是状态已经被清除，重新添加
-                            const newFile = {
-                                uid: fileId,
-                                name: file.name,
-                                status: 'done',
-                                url: imageUrl,
-                                cosUrl: imageUrl,
-                                size: size
-                            };
-                            updatedFileList[size] = [...(updatedFileList[size] || []), newFile];
-                            setFileList(updatedFileList);
-                            onSuccess(newFile);
-                        }
-                        
-                        // 检查是否所有文件都上传完成
-                        const allDone = Object.values(updatedFileList).every(sizeFiles => 
-                            sizeFiles.every(file => file.status !== 'uploading')
-                        );
-                        
-                        if (allDone) {
-                            setUploading(false);
-                        }
+                        }, 100);
                     },
                     onError: (err) => {
                         message.error(`上传失败: ${file.name}`);
                         
-                        // 更新文件状态为错误
-                        const updatedFileList = { ...fileList };
-                        const fileIndex = updatedFileList[size].findIndex(item => item.uid === fileId);
-                        if (fileIndex > -1) {
-                            updatedFileList[size][fileIndex].status = 'error';
-                            setFileList(updatedFileList);
-                        }
+                        // 使用函数式更新确保获取最新的fileList状态
+                        setFileList(prevFileList => {
+                            const updatedFileList = { ...prevFileList };
+                            const fileIndex = updatedFileList[size]?.findIndex(item => item.uid === fileId);
+                            if (fileIndex > -1) {
+                                updatedFileList[size][fileIndex].status = 'error';
+                                return updatedFileList;
+                            }
+                            return prevFileList;
+                        });
                         
                         onError(err);
                         
-                        // 检查是否所有文件都处理完成（包括错误状态）
-                        const allProcessed = Object.values(updatedFileList).every(sizeFiles => 
-                            sizeFiles.every(file => file.status !== 'uploading')
-                        );
-                        
-                        if (allProcessed) {
-                            setUploading(false);
-                        }
+                        // 检查是否所有文件都处理完成 - 使用最新的状态检查
+                        setTimeout(() => {
+                            setFileList(prevFileList => {
+                                const allProcessed = Object.values(prevFileList).every(sizeFiles => 
+                                    sizeFiles.every(file => file.status !== 'uploading')
+                                );
+                                
+                                if (allProcessed) {
+                                    setUploading(false);
+                                }
+                                
+                                return prevFileList; // 不需要更新状态，只是检查
+                            });
+                        }, 100);
                     }
                 });
             } catch (error) {
@@ -293,8 +319,9 @@ const PhotoUpload = () => {
 
     // 处理图片预览
     const onPreview = async (file, size) => {
-        let src = file.url;
-        if (!src) {
+        // 优先使用本地预览URL
+        let src = file.localUrl || file.url;
+        if (!src && file.originFileObj) {
             src = await new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.readAsDataURL(file.originFileObj);
@@ -353,6 +380,7 @@ const PhotoUpload = () => {
             // 添加各尺寸的照片数据
             selectedSizes.forEach(size => {
                 try {
+                    // 使用cosUrl而不是url，确保使用服务器上的URL
                     const urls = (fileList[size] || [])
                         .filter(file => file.cosUrl && file.status === 'done') // 确保只包含有URL且上传成功的文件
                         .map(file => file.cosUrl);
