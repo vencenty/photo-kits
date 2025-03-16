@@ -41,8 +41,9 @@ func (r *photoRepository) GetOrderByOrderSN(orderSN string) (*model.Order, error
 // UpdateOrder 更新订单信息
 func (r *photoRepository) UpdateOrder(order *model.Order) error {
 	return database.DB.Model(&model.Order{}).Where("order_sn = ?", order.OrderSN).Updates(map[string]interface{}{
-		"remark":     order.Remark,
-		"updated_at": order.UpdatedAt,
+		"reciver_name": order.ReceiverName,
+		"remark":       order.Remark,
+		"updated_at":   order.UpdatedAt,
 	}).Error
 }
 

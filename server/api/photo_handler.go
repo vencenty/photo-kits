@@ -62,6 +62,16 @@ func (h *PhotoHandler) BatchUploadPhotos(c *gin.Context) {
 		return
 	}
 
+	// 验证收货人姓名
+	if req.ReceiverName == "" {
+		log.Printf("收货人姓名为空")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "收货人姓名不能为空",
+		})
+		return
+	}
+
 	if len(req.Photos) == 0 {
 		log.Printf("照片数据为空")
 		c.JSON(http.StatusBadRequest, gin.H{

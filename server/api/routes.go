@@ -34,13 +34,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	})
 
 	// 初始化依赖
-
 	photoRepo := dao.NewPhotoRepository()
 	photoService := service.NewPhotoService(photoRepo)
-	photoHandler := NewPhotoHandler(photoService)
+	// 不再需要 photoHandler，因为我们使用 uploadHandler 处理批量上传
 
 	// 初始化上传处理器
-	uploadHandler, err := NewUploadHandler(cfg)
+	uploadHandler, err := NewUploadHandler(cfg, photoService)
 	if err != nil {
 		log.Fatalf("初始化上传处理器失败: %v", err)
 	}
@@ -51,7 +50,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	// 照片相关路由
 	photoGroup := api.Group("/photos")
 	{
-		photoGroup.POST("/batch-upload", photoHandler.BatchUploadPhotos)
+		photoGroup.POST("/batch-upload", uploadHandler.BatchUploadPhotos)
 	}
 
 	// 文件上传路由

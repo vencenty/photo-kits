@@ -2,9 +2,10 @@ package model
 
 // PhotoUploadRequest 照片上传请求
 type PhotoUploadRequest struct {
-	OrderSn string       `json:"order_sn"`
-	Remark  string       `json:"remark"`
-	Photos  []PhotoBatch `json:"photos"`
+	OrderSn      string       `json:"order_sn"`
+	ReceiverName string       `json:"receiver_name"`
+	Remark       string       `json:"remark"`
+	Photos       []PhotoBatch `json:"photos"`
 }
 
 // PhotoBatch 批量照片信息
