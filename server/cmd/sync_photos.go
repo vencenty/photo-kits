@@ -62,6 +62,7 @@ var defaultConfig = SyncConfig{
 type Order struct {
 	ID        uint      `gorm:"primaryKey"`
 	OrderSn   string    `gorm:"column:order_sn"`
+	Receiver  string    `gorm:"column:receiver"`
 	Remark    string    `gorm:"column:remark"`
 	UpdatedAt time.Time `gorm:"column:updated_at"`
 	Status    int       `gorm:"column:status"`
@@ -389,9 +390,9 @@ func processOrder(ctx context.Context, order Order, maxPhotoTasks int) error {
 		log.Printf("订单 %s 没有照片，直接标记为已处理", order.OrderSn)
 		return updateOrderStatus(order.ID)
 	}
-
+	filename := fmt.Sprintf("【%v】%v", order.OrderSn, order.Receiver)
 	// 创建订单目录
-	orderDir := expandPath(filepath.Join(SyncDir, order.OrderSn))
+	orderDir := expandPath(filepath.Join(SyncDir, filename))
 	if err := os.MkdirAll(orderDir, 0755); err != nil {
 		return fmt.Errorf("创建订单目录失败: %v", err)
 	}
