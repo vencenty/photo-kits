@@ -11,6 +11,7 @@ import (
 func main() {
 	// 加载配置
 	cfg := config.LoadConfig()
+	fmt.Println(cfg)
 	log.Printf("配置加载完成，数据库连接: %s:%d/%s", cfg.Database.Host, cfg.Database.Port, cfg.Database.DBName)
 
 	// 设置Gin模式
@@ -29,7 +30,7 @@ func main() {
 
 	// 启动服务器
 	addr := fmt.Sprintf("0.0.0.0:%d", cfg.Server.Port)
-	fmt.Printf("服务器启动在 http://localhost%s\n", addr)
+	fmt.Printf("服务器启动在 http://%s\n", addr)
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("服务器启动失败: %v", err)
 	}

@@ -18,9 +18,18 @@ dbname = "photo-kits"
 #secret_key = "gFUR5eWc47yRDXVNZqwcRVPtEc1veKOPPOXGhmxh"
 #use_ssl = true
 #bucket = "user-photos"
-
 endpoint = "fn.vencenty.cn:29000"
 access_key = "aalNu8yRU2vcGwgFQ0wk"
 secret_key = "V4UQ7uWJdKQsJTwcpVht1aAK7PZK0yvDgdggdzAl"
 use_ssl = false
 bucket = "user-photos"
+thumb_bucket = "img-thumbs"
+
+
+[aliyun_minio]
+endpoint = "storage.vagrancy.cn"
+access_key = "yLCkFYZzTJudMQAYgS3z"
+secret_key = "gxr0Jvq0RORJLwvqZ3dWGjKELuL4NHrMvWElWana"
+use_ssl = false
+bucket = "user-photos"
+thumb_bucket = "img-thumbs"

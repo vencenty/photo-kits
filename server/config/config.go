@@ -12,9 +12,10 @@ import (
 
 // Config 应用配置
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Minio    MinioConfig
+	Server      ServerConfig
+	Database    DatabaseConfig
+	Minio       MinioConfig
+	AliyunMinio AliyunMinioConfig
 }
 
 // ServerConfig 服务器配置
@@ -34,11 +35,21 @@ type DatabaseConfig struct {
 
 // MinioConfig Minio对象存储配置
 type MinioConfig struct {
-	Endpoint  string
-	AccessKey string
-	SecretKey string
-	UseSSL    bool
-	Bucket    string
+	Endpoint    string
+	AccessKey   string
+	SecretKey   string
+	UseSSL      bool
+	Bucket      string
+	ThumbBucket string
+}
+
+type AliyunMinioConfig struct {
+	Endpoint    string
+	AccessKey   string
+	SecretKey   string
+	UseSSL      bool
+	Bucket      string
+	ThumbBucket string
 }
 
 // GetDSN 获取数据库连接字符串
@@ -74,11 +85,20 @@ func LoadConfig() *Config {
 			DBName:   viper.GetString("database.dbname"),
 		},
 		Minio: MinioConfig{
-			Endpoint:  viper.GetString("minio.endpoint"),
-			AccessKey: viper.GetString("minio.access_key"),
-			SecretKey: viper.GetString("minio.secret_key"),
-			UseSSL:    viper.GetBool("minio.use_ssl"),
-			Bucket:    viper.GetString("minio.bucket"),
+			Endpoint:    viper.GetString("minio.endpoint"),
+			AccessKey:   viper.GetString("minio.access_key"),
+			SecretKey:   viper.GetString("minio.secret_key"),
+			UseSSL:      viper.GetBool("minio.use_ssl"),
+			Bucket:      viper.GetString("minio.bucket"),
+			ThumbBucket: viper.GetString("minio.thumb_bucket"),
+		},
+		AliyunMinio: AliyunMinioConfig{
+			Endpoint:    viper.GetString("aliyun_minio.endpoint"),
+			AccessKey:   viper.GetString("aliyun_minio.access_key"),
+			SecretKey:   viper.GetString("aliyun_minio.secret_key"),
+			UseSSL:      viper.GetBool("aliyun_minio.use_ssl"),
+			Bucket:      viper.GetString("aliyun_minio.bucket"),
+			ThumbBucket: viper.GetString("aliyun_minio.thumb_bucket"),
 		},
 	}
 
@@ -167,7 +187,7 @@ func loadFromTOML(filePath string, config *Config) error {
 			case "secret_key":
 				config.Minio.SecretKey = value
 			case "use_ssl":
-				config.Minio.UseSSL = (value == "true")
+				config.Minio.UseSSL = value == "true"
 			case "bucket":
 				config.Minio.Bucket = value
 			}

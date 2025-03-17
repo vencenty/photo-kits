@@ -32,7 +32,7 @@ func (s *photoService) BatchUploadPhotos(req *model.PhotoUploadRequest) (*model.
 		return nil, errors.New("订单号不能为空")
 	}
 
-	if req.ReceiverName == "" {
+	if req.Receiver == "" {
 		return nil, errors.New("收货人姓名不能为空")
 	}
 
@@ -45,12 +45,12 @@ func (s *photoService) BatchUploadPhotos(req *model.PhotoUploadRequest) (*model.
 	if err != nil {
 		// 创建新订单
 		order = &model.Order{
-			OrderSN:      req.OrderSn,
-			ReceiverName: req.ReceiverName,
-			Remark:       req.Remark,
-			Status:       0, // 未处理状态
-			CreatedAt:    time.Now(),
-			UpdatedAt:    time.Now(),
+			OrderSN:   req.OrderSn,
+			Receiver:  req.Receiver,
+			Remark:    req.Remark,
+			Status:    0, // 未处理状态
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
 		}
 		if err := s.photoRepo.CreateOrder(order); err != nil {
 			return nil, errors.New("创建订单失败: " + err.Error())
@@ -62,8 +62,8 @@ func (s *photoService) BatchUploadPhotos(req *model.PhotoUploadRequest) (*model.
 		}
 
 		// 如果订单存在，更新收货人姓名和备注
-		if order.ReceiverName != req.ReceiverName || order.Remark != req.Remark {
-			order.ReceiverName = req.ReceiverName
+		if order.Receiver != req.Receiver || order.Remark != req.Remark {
+			order.Receiver = req.Receiver
 			order.Remark = req.Remark
 			order.UpdatedAt = time.Now()
 			if err := s.photoRepo.UpdateOrder(order); err != nil {

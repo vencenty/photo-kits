@@ -44,17 +44,20 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		log.Fatalf("初始化上传处理器失败: %v", err)
 	}
 
-	// API路由组
+	// 文件上传路由
 	api := r.Group("/api")
+	{
+		api.POST("/upload", uploadHandler.UploadFile)
+	}
 
-	// 照片相关路由
+	// 照片相	api := r.Group("/api")
+	//	{
+	//		api.POST("/upload", uploadHandler.UploadFile)
+	//	}关路由
 	photoGroup := api.Group("/photos")
 	{
 		photoGroup.POST("/batch-upload", uploadHandler.BatchUploadPhotos)
 	}
-
-	// 文件上传路由
-	api.POST("/upload", uploadHandler.UploadFile)
 
 	return r
 }

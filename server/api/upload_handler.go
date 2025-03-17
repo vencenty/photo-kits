@@ -16,39 +16,13 @@ import (
 )
 
 // 初始化Minio客户端
-func initMinioClient(cfg *config.MinioConfig) (*minio.Client, error) {
-	client, err := minio.New(cfg.Endpoint, cfg.AccessKey, cfg.SecretKey, cfg.UseSSL)
+func initMinioClient(cfg *config.Config) (*minio.Client, error) {
+	//client, err := minio.New(cfg.Endpoint, cfg.AccessKey, cfg.SecretKey, cfg.UseSSL)
+	client, err := minio.New(cfg.AliyunMinio.Endpoint, cfg.AliyunMinio.AccessKey, cfg.AliyunMinio.SecretKey, cfg.AliyunMinio.UseSSL)
 	if err != nil {
 		return nil, err
 	}
 	return client, nil
-}
-
-// 确保存储桶存在
-func ensureBucketExists(client *minio.Client, bucketName string) error {
-	exists, err := client.BucketExists(bucketName)
-	if err != nil {
-		fmt.Println(err)
-		return fmt.Errorf("检查存储桶是否存在失败: %w", err)
-	}
-
-	if !exists {
-		err = client.MakeBucket(bucketName, "")
-		if err != nil {
-			return fmt.Errorf("创建存储桶失败: %w", err)
-		}
-		log.Printf("成功创建存储桶: %s", bucketName)
-
-		// 设置存储桶为公共访问
-		policy := `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetObject"],"Resource":["arn:aws:s3:::` + bucketName + `/*"]}]}`
-		err = client.SetBucketPolicy(bucketName, policy)
-		if err != nil {
-			return fmt.Errorf("设置存储桶策略失败: %w", err)
-		}
-		log.Printf("成功设置存储桶策略为公共访问: %s", bucketName)
-	}
-
-	return nil
 }
 
 // 生成唯一的文件名
@@ -67,27 +41,21 @@ func generateUniqueFilename(originalFilename string) string {
 // UploadHandler 文件上传处理器
 type UploadHandler struct {
 	minioClient  *minio.Client
-	config       *config.MinioConfig
+	config       *config.Config
 	photoService service.PhotoService
 }
 
 // NewUploadHandler 创建上传处理器实例
 func NewUploadHandler(cfg *config.Config, photoService service.PhotoService) (*UploadHandler, error) {
 	// 初始化Minio客户端
-	minioClient, err := initMinioClient(&cfg.Minio)
+	minioClient, err := initMinioClient(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	// 确保存储桶存在
-	//err = ensureBucketExists(minioClient, cfg.Minio.Bucket)
-	//if err != nil {
-	//	return nil, err
-	//}
-
 	return &UploadHandler{
 		minioClient:  minioClient,
-		config:       &cfg.Minio,
+		config:       cfg,
 		photoService: photoService,
 	}, nil
 }
@@ -135,20 +103,20 @@ func (h *UploadHandler) UploadFile(c *gin.Context) {
 		contentType = "application/octet-stream"
 	}
 
-	// 执行上传
-	n, err := h.minioClient.PutObject(h.config.Bucket, objectName, src, file.Size, minio.PutObjectOptions{
+	// 上传文件到Minio
+	n, err := h.minioClient.PutObject(h.config.AliyunMinio.Bucket, objectName, src, file.Size, minio.PutObjectOptions{
 		ContentType: contentType,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"message": "上传到Minio失败: " + err.Error(),
+			"message": "上传文件到Oss失败: " + err.Error(),
 		})
 		return
 	}
 
 	// 构建文件URL
-	fileURL := fmt.Sprintf("http://%s/%s/%s", h.config.Endpoint, h.config.Bucket, objectName)
+	fileURL := fmt.Sprintf("https://%s/%s/%s", h.config.AliyunMinio.Endpoint, h.config.AliyunMinio.Bucket, objectName)
 
 	// 返回成功信息
 	c.JSON(http.StatusOK, gin.H{
@@ -191,7 +159,7 @@ func (h *UploadHandler) BatchUploadPhotos(c *gin.Context) {
 	}
 
 	// 验证收货人姓名
-	if req.ReceiverName == "" {
+	if req.Receiver == "" {
 		log.Printf("收货人姓名为空")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
