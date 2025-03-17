@@ -98,12 +98,14 @@ var (
 	runOnce    bool
 	logFile    string
 	configPath string
+	syncDir    string
 )
 
 func init() {
 	flag.BoolVar(&runOnce, "once", false, "只运行一次，不启动定时任务")
 	flag.StringVar(&logFile, "log", "", "日志文件路径，默认输出到标准输出")
 	flag.StringVar(&configPath, "config", "", "配置文件路径，默认自动查找")
+	flag.StringVar(&syncDir, "sync-dir", "~/syncData/photos", "同步目录路径，默认为 ~/syncData/photos")
 	flag.Parse()
 }
 
@@ -147,6 +149,7 @@ func main() {
 		log.Println("一次性同步任务完成")
 		return
 	}
+	log.Printf("同步目录：%v", syncDir)
 
 	// 启动定时任务
 	log.Printf("启动定时同步任务，间隔: %d分钟", config.Sync.Interval)
@@ -390,9 +393,12 @@ func processOrder(ctx context.Context, order Order, maxPhotoTasks int) error {
 		log.Printf("订单 %s 没有照片，直接标记为已处理", order.OrderSn)
 		return updateOrderStatus(order.ID)
 	}
-	filename := fmt.Sprintf("【%v】%v", order.OrderSn, order.Receiver)
-	// 创建订单目录
-	orderDir := expandPath(filepath.Join(SyncDir, filename))
+
+	// 获取当前月份作为目录名
+	currentMonth := time.Now().Format("200601")
+
+	// 创建订单目录，使用新的路径结构
+	orderDir := expandPath(filepath.Join(syncDir, currentMonth, fmt.Sprintf("【%v】%v", order.OrderSn, order.Receiver)))
 	if err := os.MkdirAll(orderDir, 0755); err != nil {
 		return fmt.Errorf("创建订单目录失败: %v", err)
 	}

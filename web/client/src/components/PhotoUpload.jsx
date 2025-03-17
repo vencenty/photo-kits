@@ -451,7 +451,7 @@ const PhotoUpload = () => {
             // 构建符合要求的新数据结构
             const formData = {
                 order_sn: values.orderId,
-                receiver_name: values.receiverName, // 添加收货人姓名
+                receiver: values.receiver, // 修改为使用 values.receiver
                 remark: values.remark,
                 photos: []
             };
@@ -795,7 +795,7 @@ const PhotoUpload = () => {
                     >
                         {/* 收货人姓名字段 */}
                         <Form.Item
-                            name="receiverName"
+                            name="receiver"
                             label={<span style={{ fontSize: '16px', fontWeight: 500 }}>收货人姓名</span>}
                             rules={[{ required: true, message: '请输入收货人姓名' }]}
                             style={formItemStyle}
