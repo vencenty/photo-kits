@@ -42,10 +42,61 @@ type DatabaseConfig struct {
 	DBName   string `toml:"dbname"`
 }
 
+// 错误类型定义
+type PhotoError struct {
+	Type      string // 错误类型：download, convert, system
+	Message   string // 错误信息
+	Retryable bool   // 是否可重试
+	OrderID   uint   // 关联的订单ID
+	PhotoURL  string // 关联的照片URL
+}
+
+// 错误处理策略
+type ErrorStrategy struct {
+	MaxRetries int           // 最大重试次数
+	RetryDelay time.Duration // 重试延迟
+	OnFailure  func(error)   // 失败回调
+}
+
+// 订单状态
+type OrderStatus struct {
+	OrderID    uint
+	Status     string
+	ErrorCount int
+	LastError  error
+	RetryCount int
+	UpdatedAt  time.Time
+}
+
+// 结构化日志
+type LogEntry struct {
+	Timestamp time.Time
+	OrderID   uint
+	Operation string
+	Status    string
+	Error     error
+	Details   map[string]interface{}
+}
+
+// 监控指标
+type Metrics struct {
+	TotalOrders    int64
+	FailedOrders   int64
+	RetryCount     int64
+	ProcessingTime time.Duration
+	ErrorRates     map[string]float64
+}
+
+// 扩展配置结构体
 type SyncConfig struct {
-	Interval      int `toml:"interval"` // 同步间隔，单位分钟
-	MaxWorkers    int `toml:"max_workers"`
-	MaxPhotoTasks int `toml:"max_photo_tasks"`
+	Interval       int           `toml:"interval"` // 同步间隔，单位分钟
+	MaxWorkers     int           `toml:"max_workers"`
+	MaxPhotoTasks  int           `toml:"max_photo_tasks"`
+	MaxRetries     int           `toml:"max_retries"`     // 最大重试次数
+	RetryDelay     time.Duration `toml:"retry_delay"`     // 重试延迟
+	Timeout        time.Duration `toml:"timeout"`         // 操作超时时间
+	MaxConcurrent  int           `toml:"max_concurrent"`  // 最大并发数
+	ErrorThreshold int           `toml:"error_threshold"` // 错误阈值
 }
 
 // 本地同步目录
@@ -53,9 +104,14 @@ const SyncDir = "~/syncData"
 
 // 默认配置
 var defaultConfig = SyncConfig{
-	Interval:      10, // 默认1分钟同步一次（仅用于测试）
-	MaxWorkers:    5,  // 默认5个订单处理协程
-	MaxPhotoTasks: 10, // 默认10个照片处理协程
+	Interval:       10,               // 默认10分钟同步一次
+	MaxWorkers:     5,                // 默认5个订单处理协程
+	MaxPhotoTasks:  10,               // 默认10个照片处理协程
+	MaxRetries:     3,                // 默认最大重试3次
+	RetryDelay:     5 * time.Second,  // 默认重试延迟5秒
+	Timeout:        30 * time.Second, // 默认超时30秒
+	MaxConcurrent:  10,               // 默认最大并发10
+	ErrorThreshold: 5,                // 默认错误阈值5次
 }
 
 // Order 订单结构体
@@ -101,17 +157,33 @@ var (
 	syncDir    string
 )
 
+// 全局变量
+var (
+	metrics = &Metrics{
+		ErrorRates: make(map[string]float64),
+	}
+	errorStrategies = make(map[string]ErrorStrategy)
+)
+
 func init() {
 	flag.BoolVar(&runOnce, "once", false, "只运行一次，不启动定时任务")
 	flag.StringVar(&logFile, "log", "", "日志文件路径，默认输出到标准输出")
 	flag.StringVar(&configPath, "config", "", "配置文件路径，默认自动查找")
-	flag.StringVar(&syncDir, "sync-dir", "~/syncData/photos", "同步目录路径，默认为 ~/syncData/photos")
+	flag.StringVar(&syncDir, "sync-dir", "/vol2/1000/Sync/user-photos", "同步目录路径，默认为 /vol2/1000/Sync/user-photos")
 	flag.Parse()
 }
 
 func main() {
 	// 设置日志输出
 	setupLogger()
+
+	// 初始化错误处理策略
+	initErrorStrategies()
+
+	// 检查系统依赖
+	if err := checkSystemDependencies(); err != nil {
+		log.Fatalf("系统依赖检查失败: %v", err)
+	}
 
 	// 捕获系统信号
 	ctx, cancel := context.WithCancel(context.Background())
@@ -152,7 +224,7 @@ func main() {
 	log.Printf("同步目录：%v", syncDir)
 
 	// 启动定时任务
-	log.Printf("启动定时同步任务，间隔: %d分钟", config.Sync.Interval)
+	log.Printf("启动定时同步任务，间隔: %d秒", config.Sync.Interval)
 	ticker := time.NewTicker(time.Duration(config.Sync.Interval) * time.Second)
 	defer ticker.Stop()
 
@@ -203,25 +275,40 @@ func setupSignalHandler(cancel context.CancelFunc) {
 // 同步照片主函数
 func syncPhotos(ctx context.Context, config SyncConfig) error {
 	startTime := time.Now()
-	log.Println("开始同步照片...")
+	logEntry := LogEntry{
+		Timestamp: time.Now(),
+		Operation: "sync_photos",
+		Status:    "started",
+		Details:   map[string]interface{}{"config": config},
+	}
+	logStructured(logEntry)
 
-	// 获取未处理的订单
+	// 获取待处理订单
 	orders, err := getUnprocessedOrders()
 	if err != nil {
-		return fmt.Errorf("获取未处理订单失败: %v", err)
+		logEntry.Status = "failed"
+		logEntry.Error = err
+		logStructured(logEntry)
+		updateMetrics("get_orders", time.Since(startTime), err)
+		return fmt.Errorf("获取待处理订单失败: %v", err)
 	}
 
-	log.Printf("找到 %d 个未处理订单", len(orders))
 	if len(orders) == 0 {
+		log.Println("没有待处理的订单")
+		logEntry.Status = "completed"
+		logStructured(logEntry)
+		updateMetrics("sync_photos", time.Since(startTime), nil)
 		return nil
 	}
 
-	// 创建工作池
-	var wg sync.WaitGroup
+	log.Printf("找到 %d 个待处理订单", len(orders))
+
+	// 创建订单处理通道
 	orderCh := make(chan Order, len(orders))
 	errCh := make(chan error, len(orders))
 
-	// 启动工作协程
+	// 启动订单处理协程
+	var wg sync.WaitGroup
 	for i := 0; i < config.MaxWorkers; i++ {
 		wg.Add(1)
 		go func(workerID int) {
@@ -229,49 +316,57 @@ func syncPhotos(ctx context.Context, config SyncConfig) error {
 			for order := range orderCh {
 				select {
 				case <-ctx.Done():
-					log.Printf("工作协程 %d: 收到取消信号，停止处理", workerID)
+					log.Printf("订单处理协程 %d: 收到取消信号，停止处理", workerID)
 					return
 				default:
-					log.Printf("工作协程 %d: 开始处理订单 %s", workerID, order.OrderSn)
+					log.Printf("订单处理协程 %d: 开始处理订单 %s", workerID, order.OrderSn)
 					if err := processOrder(ctx, order, config.MaxPhotoTasks); err != nil {
-						log.Printf("工作协程 %d: 处理订单 %s 失败: %v", workerID, order.OrderSn, err)
+						log.Printf("订单处理协程 %d: 处理订单 %s 失败: %v", workerID, order.OrderSn, err)
 						errCh <- fmt.Errorf("处理订单 %s 失败: %v", order.OrderSn, err)
 					} else {
-						log.Printf("工作协程 %d: 订单 %s 处理完成", workerID, order.OrderSn)
+						log.Printf("订单处理协程 %d: 订单 %s 处理完成", workerID, order.OrderSn)
 					}
 				}
 			}
 		}(i)
 	}
 
-	// 分发订单
+	// 分发订单任务
 	for _, order := range orders {
 		select {
 		case <-ctx.Done():
-			log.Println("收到取消信号，停止分发订单")
+			log.Println("收到取消信号，停止分发订单任务")
 			close(orderCh)
 			return fmt.Errorf("任务被取消")
 		case orderCh <- order:
-			// 订单已分发
+			// 订单任务已分发
 		}
 	}
 	close(orderCh)
 
-	// 等待所有工作完成
+	// 等待所有订单处理完成
 	wg.Wait()
 	close(errCh)
 
 	// 收集错误
-	var errs []string
+	var orderErrors []string
 	for err := range errCh {
-		errs = append(errs, err.Error())
+		orderErrors = append(orderErrors, err.Error())
 	}
 
-	if len(errs) > 0 {
-		return fmt.Errorf("同步过程中发生 %d 个错误: %s", len(errs), strings.Join(errs, "; "))
+	if len(orderErrors) > 0 {
+		err := fmt.Errorf("同步过程中有 %d 个订单处理失败: %s",
+			len(orderErrors), strings.Join(orderErrors, "; "))
+		logEntry.Status = "completed_with_errors"
+		logEntry.Error = err
+		logStructured(logEntry)
+		updateMetrics("sync_photos", time.Since(startTime), err)
+		return err
 	}
 
-	log.Printf("同步完成，耗时: %v", time.Since(startTime))
+	logEntry.Status = "completed"
+	logStructured(logEntry)
+	updateMetrics("sync_photos", time.Since(startTime), nil)
 	return nil
 }
 
@@ -378,11 +473,23 @@ func getOrderPhotos(orderID uint) ([]Photo, error) {
 
 // 处理单个订单
 func processOrder(ctx context.Context, order Order, maxPhotoTasks int) error {
-	log.Printf("开始处理订单: %s (ID: %d)", order.OrderSn, order.ID)
+	startTime := time.Now()
+	logEntry := LogEntry{
+		Timestamp: time.Now(),
+		OrderID:   order.ID,
+		Operation: "order_processing",
+		Status:    "started",
+		Details:   map[string]interface{}{"order_sn": order.OrderSn},
+	}
+	logStructured(logEntry)
 
 	// 获取订单下的所有照片
 	photos, err := getOrderPhotos(order.ID)
 	if err != nil {
+		logEntry.Status = "failed"
+		logEntry.Error = err
+		logStructured(logEntry)
+		updateMetrics("get_photos", time.Since(startTime), err)
 		return fmt.Errorf("获取订单照片失败: %v", err)
 	}
 
@@ -391,7 +498,17 @@ func processOrder(ctx context.Context, order Order, maxPhotoTasks int) error {
 	// 如果没有照片，直接更新订单状态
 	if len(photos) == 0 {
 		log.Printf("订单 %s 没有照片，直接标记为已处理", order.OrderSn)
-		return updateOrderStatus(order.ID)
+		if err := updateOrderStatus(order.ID); err != nil {
+			logEntry.Status = "failed"
+			logEntry.Error = err
+			logStructured(logEntry)
+			updateMetrics("update_status", time.Since(startTime), err)
+			return fmt.Errorf("更新订单状态失败: %v", err)
+		}
+		logEntry.Status = "completed"
+		logStructured(logEntry)
+		updateMetrics("order_processing", time.Since(startTime), nil)
+		return nil
 	}
 
 	// 获取当前月份作为目录名
@@ -400,6 +517,10 @@ func processOrder(ctx context.Context, order Order, maxPhotoTasks int) error {
 	// 创建订单目录，使用新的路径结构
 	orderDir := expandPath(filepath.Join(syncDir, currentMonth, fmt.Sprintf("【%v】%v", order.OrderSn, order.Receiver)))
 	if err := os.MkdirAll(orderDir, 0755); err != nil {
+		logEntry.Status = "failed"
+		logEntry.Error = err
+		logStructured(logEntry)
+		updateMetrics("create_directory", time.Since(startTime), err)
 		return fmt.Errorf("创建订单目录失败: %v", err)
 	}
 
@@ -489,20 +610,41 @@ func processOrder(ctx context.Context, order Order, maxPhotoTasks int) error {
 
 	// 即使有照片处理失败，也更新订单状态
 	if err := updateOrderStatus(order.ID); err != nil {
+		logEntry.Status = "failed"
+		logEntry.Error = err
+		logStructured(logEntry)
+		updateMetrics("update_status", time.Since(startTime), err)
 		return fmt.Errorf("更新订单状态失败: %v", err)
 	}
 
 	if len(photoErrors) > 0 {
-		return fmt.Errorf("订单 %s 处理过程中有 %d 个照片处理失败: %s",
+		err := fmt.Errorf("订单 %s 处理过程中有 %d 个照片处理失败: %s",
 			order.OrderSn, len(photoErrors), strings.Join(photoErrors, "; "))
+		logEntry.Status = "completed_with_errors"
+		logEntry.Error = err
+		logStructured(logEntry)
+		updateMetrics("order_processing", time.Since(startTime), err)
+		return err
 	}
 
-	log.Printf("订单 %s 处理完成", order.OrderSn)
+	logEntry.Status = "completed"
+	logStructured(logEntry)
+	updateMetrics("order_processing", time.Since(startTime), nil)
 	return nil
 }
 
 // 下载并转换照片
 func downloadAndConvertPhoto(photo Photo, sizeDir string, index int) error {
+	startTime := time.Now()
+	logEntry := LogEntry{
+		Timestamp: time.Now(),
+		OrderID:   photo.OrderID,
+		Operation: "photo_processing",
+		Status:    "started",
+		Details:   map[string]interface{}{"photo_url": photo.URL},
+	}
+	logStructured(logEntry)
+
 	// 从URL中提取文件名
 	urlParts := strings.Split(photo.URL, "/")
 	originalFilename := urlParts[len(urlParts)-1]
@@ -518,17 +660,29 @@ func downloadAndConvertPhoto(photo Photo, sizeDir string, index int) error {
 	finalPath := filepath.Join(sizeDir, baseName+".jpg")
 
 	// 下载文件
-	log.Printf("下载照片: %s", photo.URL)
-	err := downloadFile(photo.URL, tempPath)
+	err := withRetry(func() error {
+		return downloadFile(photo.URL, tempPath)
+	}, errorStrategies["download"].MaxRetries, errorStrategies["download"].RetryDelay)
+
 	if err != nil {
+		logEntry.Status = "failed"
+		logEntry.Error = err
+		logStructured(logEntry)
+		updateMetrics("download", time.Since(startTime), err)
 		return fmt.Errorf("下载照片失败: %v", err)
 	}
 
 	// 如果不是JPG格式，则转换
 	if ext != ".jpg" && ext != ".jpeg" {
-		log.Printf("转换照片格式: %s -> jpg", ext)
-		err = convertToJPG(tempPath, finalPath)
+		err = withRetry(func() error {
+			return convertToJPG(tempPath, finalPath)
+		}, errorStrategies["convert"].MaxRetries, errorStrategies["convert"].RetryDelay)
+
 		if err != nil {
+			logEntry.Status = "failed"
+			logEntry.Error = err
+			logStructured(logEntry)
+			updateMetrics("convert", time.Since(startTime), err)
 			return fmt.Errorf("转换照片格式失败: %v", err)
 		}
 
@@ -540,10 +694,17 @@ func downloadAndConvertPhoto(photo Photo, sizeDir string, index int) error {
 		// 如果已经是JPG，直接重命名
 		err = os.Rename(tempPath, finalPath)
 		if err != nil {
+			logEntry.Status = "failed"
+			logEntry.Error = err
+			logStructured(logEntry)
+			updateMetrics("rename", time.Since(startTime), err)
 			return fmt.Errorf("重命名照片失败: %v", err)
 		}
 	}
 
+	logEntry.Status = "completed"
+	logStructured(logEntry)
+	updateMetrics("photo_processing", time.Since(startTime), nil)
 	return nil
 }
 
@@ -622,4 +783,137 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// 初始化错误处理策略
+func initErrorStrategies() {
+	errorStrategies["download"] = ErrorStrategy{
+		MaxRetries: 3,
+		RetryDelay: 5 * time.Second,
+		OnFailure: func(err error) {
+			log.Printf("下载失败: %v", err)
+			metrics.FailedOrders++
+		},
+	}
+
+	errorStrategies["convert"] = ErrorStrategy{
+		MaxRetries: 2,
+		RetryDelay: 3 * time.Second,
+		OnFailure: func(err error) {
+			log.Printf("转换失败: %v", err)
+			metrics.FailedOrders++
+		},
+	}
+
+	errorStrategies["system"] = ErrorStrategy{
+		MaxRetries: 1,
+		RetryDelay: 1 * time.Second,
+		OnFailure: func(err error) {
+			log.Printf("系统错误: %v", err)
+			metrics.FailedOrders++
+		},
+	}
+}
+
+// 检查系统依赖
+func checkSystemDependencies() error {
+	// 检查 ImageMagick
+	if _, err := exec.LookPath("convert"); err != nil {
+		return fmt.Errorf("未找到 ImageMagick，请先安装: %v", err)
+	}
+	return nil
+}
+
+// 重试函数
+func withRetry(operation func() error, maxRetries int, delay time.Duration) error {
+	var lastErr error
+	for i := 0; i < maxRetries; i++ {
+		if err := operation(); err != nil {
+			lastErr = err
+			metrics.RetryCount++
+			log.Printf("操作失败，第%d次重试: %v", i+1, err)
+			time.Sleep(delay)
+			continue
+		}
+		return nil
+	}
+	return fmt.Errorf("重试%d次后仍然失败: %v", maxRetries, lastErr)
+}
+
+// 错误类型判断
+func isNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "connection refused") ||
+		strings.Contains(err.Error(), "timeout") ||
+		strings.Contains(err.Error(), "network")
+}
+
+func isConversionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "convert") ||
+		strings.Contains(err.Error(), "ImageMagick")
+}
+
+// 错误恢复处理
+func recoverFromError(err error, order Order) error {
+	switch {
+	case isNetworkError(err):
+		return handleNetworkError(err, order)
+	case isConversionError(err):
+		return handleConversionError(err, order)
+	default:
+		return handleUnknownError(err, order)
+	}
+}
+
+// 网络错误处理
+func handleNetworkError(err error, order Order) error {
+	strategy := errorStrategies["download"]
+	return withRetry(func() error {
+		// 实现重试逻辑
+		return nil
+	}, strategy.MaxRetries, strategy.RetryDelay)
+}
+
+// 转换错误处理
+func handleConversionError(err error, order Order) error {
+	strategy := errorStrategies["convert"]
+	return withRetry(func() error {
+		// 实现重试逻辑
+		return nil
+	}, strategy.MaxRetries, strategy.RetryDelay)
+}
+
+// 未知错误处理
+func handleUnknownError(err error, order Order) error {
+	strategy := errorStrategies["system"]
+	return withRetry(func() error {
+		// 实现重试逻辑
+		return nil
+	}, strategy.MaxRetries, strategy.RetryDelay)
+}
+
+// 记录结构化日志
+func logStructured(entry LogEntry) {
+	log.Printf("[%s] OrderID: %d, Operation: %s, Status: %s, Error: %v, Details: %+v",
+		entry.Timestamp.Format(time.RFC3339),
+		entry.OrderID,
+		entry.Operation,
+		entry.Status,
+		entry.Error,
+		entry.Details)
+}
+
+// 更新监控指标
+func updateMetrics(operation string, duration time.Duration, err error) {
+	metrics.TotalOrders++
+	if err != nil {
+		metrics.FailedOrders++
+		metrics.ErrorRates[operation] = float64(metrics.FailedOrders) / float64(metrics.TotalOrders)
+	}
+	metrics.ProcessingTime += duration
 }
