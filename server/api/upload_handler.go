@@ -1,12 +1,19 @@
 package api
 
 import (
+	"bytes"
 	"fmt"
+	"image"
+	"image/jpeg"
+	"image/png"
+	"io"
 	"log"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/disintegration/imaging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/minio/minio-go"
@@ -36,6 +43,44 @@ func generateUniqueFilename(originalFilename string) string {
 	uuid := uuid.New().String()[:8]
 
 	return fmt.Sprintf("%s-%s-%s%s", name, timestamp, uuid, ext)
+}
+
+// 生成缩略图
+func generateThumbnail(src io.Reader, format string, maxWidth, maxHeight int) ([]byte, error) {
+	// 解码图像
+	var img image.Image
+	var err error
+
+	switch strings.ToLower(format) {
+	case "jpeg", "jpg":
+		img, err = jpeg.Decode(src)
+	case "png":
+		img, err = png.Decode(src)
+	default:
+		return nil, fmt.Errorf("不支持的图像格式: %s", format)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("解码图像失败: %w", err)
+	}
+
+	// 调整图像大小
+	thumbnail := imaging.Resize(img, maxWidth, maxHeight, imaging.Lanczos)
+
+	// 编码为字节数组
+	buf := new(bytes.Buffer)
+	switch strings.ToLower(format) {
+	case "jpeg", "jpg":
+		err = jpeg.Encode(buf, thumbnail, &jpeg.Options{Quality: 85})
+	case "png":
+		err = png.Encode(buf, thumbnail)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("编码缩略图失败: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }
 
 // UploadHandler 文件上传处理器
@@ -83,6 +128,16 @@ func (h *UploadHandler) UploadFile(c *gin.Context) {
 	}
 	defer src.Close()
 
+	// 读取整个文件内容
+	fileContent, err := io.ReadAll(src)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "读取文件内容失败: " + err.Error(),
+		})
+		return
+	}
+
 	// 获取自定义路径前缀（如果有）
 	prefix := c.DefaultPostForm("prefix", "")
 
@@ -103,10 +158,14 @@ func (h *UploadHandler) UploadFile(c *gin.Context) {
 		contentType = "application/octet-stream"
 	}
 
-	// 上传文件到Minio
-	n, err := h.minioClient.PutObject(h.config.AliyunMinio.Bucket, objectName, src, file.Size, minio.PutObjectOptions{
-		ContentType: contentType,
-	})
+	// 上传原始文件到Minio
+	_, err = h.minioClient.PutObject(
+		h.config.AliyunMinio.Bucket,
+		objectName,
+		bytes.NewReader(fileContent),
+		int64(len(fileContent)),
+		minio.PutObjectOptions{ContentType: contentType},
+	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -118,17 +177,66 @@ func (h *UploadHandler) UploadFile(c *gin.Context) {
 	// 构建文件URL
 	fileURL := fmt.Sprintf("https://%s/%s/%s", h.config.AliyunMinio.Endpoint, h.config.AliyunMinio.Bucket, objectName)
 
+	// 生成缩略图（如果是图片）
+	var thumbnailURL string
+	if strings.HasPrefix(contentType, "image/") {
+		// 从内容类型获取图像格式
+		format := strings.TrimPrefix(contentType, "image/")
+
+		// 为缩略图生成新的阅读器
+		thumbnailReader := bytes.NewReader(fileContent)
+
+		// 生成缩略图
+		thumbnailData, err := generateThumbnail(thumbnailReader, format, 720, 0)
+		if err != nil {
+			log.Printf("生成缩略图失败: %v", err)
+		} else {
+			// 构建缩略图对象名
+			thumbnailObjectName := "thumb_" + objectName
+
+			// 上传缩略图到MinIO (无需额外设置过期时间，由桶生命周期策略自动控制)
+			_, err = h.minioClient.PutObject(
+				h.config.AliyunMinio.ThumbBucket,
+				thumbnailObjectName,
+				bytes.NewReader(thumbnailData),
+				int64(len(thumbnailData)),
+				minio.PutObjectOptions{
+					ContentType: contentType,
+				},
+			)
+
+			if err != nil {
+				log.Printf("上传缩略图失败: %v", err)
+			} else {
+				thumbnailURL = fmt.Sprintf("https://%s/%s/%s",
+					h.config.AliyunMinio.Endpoint,
+					h.config.AliyunMinio.ThumbBucket,
+					thumbnailObjectName)
+				log.Printf("缩略图上传成功，URL: %s", thumbnailURL)
+			}
+		}
+	}
+
 	// 返回成功信息
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"success": true,
 		"message": "文件上传成功",
 		"data": gin.H{
-			"filename":   file.Filename,
-			"size":       n,
-			"objectName": objectName,
-			"url":        fileURL,
+			"filename":    file.Filename,
+			"size":        len(fileContent),
+			"object_name": objectName,
+			"url":         fileURL,
 		},
-	})
+	}
+
+	// 如果有缩略图，添加到响应中
+	if thumbnailURL != "" {
+		response["data"].(gin.H)["thumbnail_url"] = thumbnailURL
+	} else {
+		response["data"].(gin.H)["thumbnail_url"] = thumbnailURL
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // BatchUploadPhotos 批量上传照片处理
