@@ -28,6 +28,7 @@ thumb_bucket = "img-thumbs"
 
 [aliyun_minio]
 endpoint = "storage.vagrancy.cn"
+#endpoint = "127.0.0.1:29000"
 access_key = "yLCkFYZzTJudMQAYgS3z"
 secret_key = "gxr0Jvq0RORJLwvqZ3dWGjKELuL4NHrMvWElWana"
 use_ssl = false

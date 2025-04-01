@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"fmt"
+	"github.com/pkg/errors"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -27,7 +28,7 @@ func initMinioClient(cfg *config.Config) (*minio.Client, error) {
 	//client, err := minio.New(cfg.Endpoint, cfg.AccessKey, cfg.SecretKey, cfg.UseSSL)
 	client, err := minio.New(cfg.AliyunMinio.Endpoint, cfg.AliyunMinio.AccessKey, cfg.AliyunMinio.SecretKey, cfg.AliyunMinio.UseSSL)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "minio init err")
 	}
 	return client, nil
 }

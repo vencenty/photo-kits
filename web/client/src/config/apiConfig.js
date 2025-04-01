@@ -5,7 +5,8 @@
 
 // API基础URL
  //export const API_BASE_URL = 'https://photo-kits-api.vencenty.cn';
-export const API_BASE_URL = 'http://localhost:8484';
+ export const API_BASE_URL = 'https://photo-kits-server.vagrancy.cn';
+//export const API_BASE_URL = 'http://localhost:8484';
 // 导出API端点
 export const API_ENDPOINTS = {
   UPLOAD: `${API_BASE_URL}/api/upload`,

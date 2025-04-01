@@ -419,6 +419,7 @@ const PhotoUpload = () => {
                                 updatedFileList[size][fileIndex].cosUrl = imageUrl; // 保存原始服务器URL用于提交
                                 updatedFileList[size][fileIndex].url = proxyUrl; // 使用原始URL作为预览
                                 updatedFileList[size][fileIndex].thumbUrl = thumbUrl; // 使用服务端缩略图URL
+                                updatedFileList[size][fileIndex].thumbnailUrl = data.thumbnail_url; // 专门存储服务端返回的缩略图URL
                                 updatedFileList[size][fileIndex].isCompressed = isCompressed; // 标记是否被压缩
                                 
                                 if (isCompressed) {
@@ -435,6 +436,7 @@ const PhotoUpload = () => {
                                     status: 'done',
                                     url: proxyUrl, // 使用原始URL
                                     thumbUrl: thumbUrl, // 使用服务端缩略图URL
+                                    thumbnailUrl: data.thumbnail_url, // 专门存储服务端返回的缩略图URL
                                     cosUrl: imageUrl,
                                     isCompressed: isCompressed
                                 });
@@ -449,6 +451,7 @@ const PhotoUpload = () => {
                                     status: 'done',
                                     url: proxyUrl, // 使用原始URL
                                     thumbUrl: thumbUrl, // 使用服务端缩略图URL
+                                    thumbnailUrl: data.thumbnail_url, // 专门存储服务端返回的缩略图URL
                                     cosUrl: imageUrl,
                                     size: size,
                                     isCompressed: isCompressed
@@ -792,7 +795,7 @@ const PhotoUpload = () => {
                                         justifyContent: 'center'
                                     }}>
                                         <img 
-                                            src={file.thumbUrl || file.url} 
+                                            src={file.thumbnailUrl || file.thumbUrl || file.url} 
                                             alt={file.name}
                                             style={{
                                                 maxWidth: '100%',
