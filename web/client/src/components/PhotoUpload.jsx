@@ -7,7 +7,7 @@ import ImgCrop from 'antd-img-crop';
 import { uploadToServer } from '../utils/uploadConfig';
 import { useNavigate } from 'react-router-dom';
 import { post } from '../utils/apiService';
-import IMG_PROXY_URL from '../config/commonConfig.js'
+import { IMG_PROXY_URL } from '../config/apiConfig';
 
 const { TextArea } = Input;
 const { Header, Content } = Layout;
@@ -1145,8 +1145,14 @@ const PhotoUpload = () => {
                     // 关闭加载提示
                     message.destroy();
                     
+                    // 获取总照片数
+                    const totalPhotos = data.total_photos || 0;
+                    
+                    // 将总照片数保存到localStorage
+                    localStorage.setItem('uploadedTotalPhotos', totalPhotos.toString());
+                    
                     // 显示成功消息
-                    message.success(`上传成功！共上传了 ${data.total_photos} 张照片`);
+                    message.success(`上传成功！共上传了 ${totalPhotos} 张照片`);
                     
                     // 清空表单和文件列表
                     form.resetFields();

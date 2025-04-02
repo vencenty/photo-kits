@@ -1,12 +1,28 @@
-import React from 'react';
-import { Result, Button, Layout } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Result, Button, Layout, Typography } from 'antd';
 import { CheckCircleOutlined, CameraOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 
 const { Header, Content } = Layout;
+const { Text } = Typography;
 
 const UploadComplete = () => {
     const navigate = useNavigate();
+    const [totalPhotos, setTotalPhotos] = useState(0);
+
+    // 组件加载时从localStorage读取上传的照片数量
+    useEffect(() => {
+        try {
+            const storedTotal = localStorage.getItem('uploadedTotalPhotos');
+            if (storedTotal) {
+                setTotalPhotos(parseInt(storedTotal, 10));
+                // 读取后清除，避免刷新页面时仍然显示旧数据
+                localStorage.removeItem('uploadedTotalPhotos');
+            }
+        } catch (error) {
+            console.error('读取上传照片数据失败:', error);
+        }
+    }, []);
 
     const handleBackToUpload = () => {
         navigate('/');
@@ -76,7 +92,13 @@ const UploadComplete = () => {
                     <Result
                         icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
                         title="照片上传成功！"
-                        subTitle="请静候佳音哦～我们将尽快处理您的照片"
+                        subTitle={
+                            <div style={{ fontSize: '16px', lineHeight: '1.8' }}>
+                                一共上传 <Text strong style={{ fontSize: '18px', color: '#ff4d4f' }}>{totalPhotos}</Text> 张照片，
+                                <br />
+                                请静候佳音哦～我们将尽快处理您的照片
+                            </div>
+                        }
                         extra={[
                             <Button 
                                 type="primary" 
