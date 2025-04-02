@@ -20,4 +20,4 @@ export const API_ENDPOINTS = {
 export default {
   BASE_URL: API_BASE_URL,
   ENDPOINTS: API_ENDPOINTS
-}; 
+};

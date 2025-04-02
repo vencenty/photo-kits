@@ -12,6 +12,9 @@ const { TextArea } = Input;
 const { Header, Content } = Layout;
 const { confirm } = Modal;
 
+// 图片代理配置
+const IMG_PROXY_URL = 'https://img-proxy.vagrancy.cn/insecure/quality:60/plain/';
+
 // 图片压缩函数
 const compressImage = (file, maxSizeMB = 20, quality = 0.8) => {
     return new Promise((resolve, reject) => {
@@ -403,12 +406,12 @@ const PhotoUpload = () => {
                         
                         // 获取上传后的URL
                         const imageUrl = data.url;
-                        // 使用服务端返回的缩略图URL
-                        const thumbUrl = data.thumbnail_url || imageUrl;
-                        // 直接使用服务端返回的原图URL
-                        const proxyUrl = imageUrl;
+                        // 使用服务端返回的缩略图URL或通过img-proxy代理的URL
+                        const thumbUrl = data.thumbnail_url || (IMG_PROXY_URL ? IMG_PROXY_URL + encodeURIComponent(imageUrl) : imageUrl);
+                        // 使用img-proxy代理的原图URL
+                        const proxyUrl = IMG_PROXY_URL ? IMG_PROXY_URL + encodeURIComponent(imageUrl) : imageUrl;
                         
-                        console.log(`上传成功完成: ${file.name}, URL: ${imageUrl.substring(0, 50)}..., 缩略图: ${thumbUrl ? thumbUrl.substring(0, 50) + '...' : '无'}, 队列: ${uploadQueue.length}, 活跃: ${activeUploads}/${MAX_CONCURRENT_UPLOADS}`);
+                        console.log(`上传成功完成: ${file.name}, URL: ${imageUrl.substring(0, 50)}..., 代理URL: ${proxyUrl.substring(0, 50)}..., 缩略图: ${thumbUrl ? thumbUrl.substring(0, 50) + '...' : '无'}, 队列: ${uploadQueue.length}, 活跃: ${activeUploads}/${MAX_CONCURRENT_UPLOADS}`);
                         
                         // 使用函数式更新确保获取最新的fileList状态
                         setFileList(prevFileList => {
@@ -417,9 +420,9 @@ const PhotoUpload = () => {
                             if (fileIndex > -1) {
                                 updatedFileList[size][fileIndex].status = 'done';
                                 updatedFileList[size][fileIndex].cosUrl = imageUrl; // 保存原始服务器URL用于提交
-                                updatedFileList[size][fileIndex].url = proxyUrl; // 使用原始URL作为预览
-                                updatedFileList[size][fileIndex].thumbUrl = thumbUrl; // 使用服务端缩略图URL
-                                updatedFileList[size][fileIndex].thumbnailUrl = data.thumbnail_url; // 专门存储服务端返回的缩略图URL
+                                updatedFileList[size][fileIndex].url = proxyUrl; // 使用代理URL作为预览
+                                updatedFileList[size][fileIndex].thumbUrl = thumbUrl; // 使用代理缩略图URL
+                                updatedFileList[size][fileIndex].thumbnailUrl = data.thumbnail_url ? (IMG_PROXY_URL ? IMG_PROXY_URL + encodeURIComponent(data.thumbnail_url) : data.thumbnail_url) : null; // 专门存储服务端返回的缩略图URL（加代理）
                                 updatedFileList[size][fileIndex].isCompressed = isCompressed; // 标记是否被压缩
                                 
                                 if (isCompressed) {
@@ -434,9 +437,9 @@ const PhotoUpload = () => {
                                     uid: fileId,
                                     name: file.name,
                                     status: 'done',
-                                    url: proxyUrl, // 使用原始URL
-                                    thumbUrl: thumbUrl, // 使用服务端缩略图URL
-                                    thumbnailUrl: data.thumbnail_url, // 专门存储服务端返回的缩略图URL
+                                    url: proxyUrl, // 使用代理URL
+                                    thumbUrl: thumbUrl, // 使用代理缩略图URL
+                                    thumbnailUrl: data.thumbnail_url ? (IMG_PROXY_URL ? IMG_PROXY_URL + encodeURIComponent(data.thumbnail_url) : data.thumbnail_url) : null, // 专门存储服务端返回的缩略图URL（加代理）
                                     cosUrl: imageUrl,
                                     isCompressed: isCompressed
                                 });
@@ -449,9 +452,9 @@ const PhotoUpload = () => {
                                     uid: fileId,
                                     name: file.name,
                                     status: 'done',
-                                    url: proxyUrl, // 使用原始URL
-                                    thumbUrl: thumbUrl, // 使用服务端缩略图URL
-                                    thumbnailUrl: data.thumbnail_url, // 专门存储服务端返回的缩略图URL
+                                    url: proxyUrl, // 使用代理URL
+                                    thumbUrl: thumbUrl, // 使用代理缩略图URL
+                                    thumbnailUrl: data.thumbnail_url ? (IMG_PROXY_URL ? IMG_PROXY_URL + encodeURIComponent(data.thumbnail_url) : data.thumbnail_url) : null, // 专门存储服务端返回的缩略图URL（加代理）
                                     cosUrl: imageUrl,
                                     size: size,
                                     isCompressed: isCompressed
@@ -784,6 +787,13 @@ const PhotoUpload = () => {
                                                 maxHeight: '100%',
                                                 objectFit: 'contain'
                                             }}
+                                            onError={(e) => {
+                                                console.error('加载图片失败:', file.name);
+                                                // 图片加载失败时尝试使用原始URL
+                                                if (file.cosUrl && e.target.src !== file.cosUrl) {
+                                                    e.target.src = file.cosUrl;
+                                                }
+                                            }}
                                         />
                                         {/* 优化上传状态提示，区分待上传、准备上传和正在上传 */}
                                         {file.status === 'uploading' && (
@@ -981,31 +991,51 @@ const PhotoUpload = () => {
 
     // 处理图片预览
     const onPreview = async (file, size) => {
-        // 如果有服务端URL(cosUrl)，直接使用
-        if (file.cosUrl) {
-            const imgWindow = window.open(file.cosUrl);
-            return;
-        }
-        
-        // 如果没有服务端URL，回退到本地预览
-        let src = file.url || file.thumbUrl;
-        if (!src && file.originFileObj) {
-            // 创建一个临时的文件URL
-            src = URL.createObjectURL(file.originFileObj);
-        }
-        
-        if (src) {
-            const imgWindow = window.open(src);
-            // 如果是临时URL并且是新创建的，在窗口关闭时释放资源
-            if (src.startsWith('blob:') && file.originFileObj) {
+        let previewUrl = null;
+        try {
+            // 如果有原始服务端URL，使用代理URL打开
+            if (file.cosUrl) {
+                const proxyUrl = IMG_PROXY_URL ? IMG_PROXY_URL + encodeURIComponent(file.cosUrl) : file.cosUrl;
+                const imgWindow = window.open(proxyUrl);
                 if (imgWindow) {
-                    imgWindow.onunload = () => {
-                        URL.revokeObjectURL(src);
+                    imgWindow.onerror = () => {
+                        message.error('预览图片失败，请重试');
                     };
                 }
+                return;
             }
-        } else {
-            message.error('无法预览此图片');
+            
+            // 如果没有服务端URL，回退到本地预览
+            let src = file.url || file.thumbUrl;
+            if (!src && file.originFileObj) {
+                // 创建一个临时的文件URL
+                previewUrl = URL.createObjectURL(file.originFileObj);
+                src = previewUrl;
+            }
+            
+            if (src) {
+                const imgWindow = window.open(src);
+                if (imgWindow) {
+                    imgWindow.onerror = () => {
+                        message.error('预览图片失败，请重试');
+                    };
+                    // 如果是临时URL并且是新创建的，在窗口关闭时释放资源
+                    if (previewUrl) {
+                        imgWindow.onunload = () => {
+                            URL.revokeObjectURL(previewUrl);
+                        };
+                    }
+                }
+            } else {
+                message.error('无法预览此图片');
+            }
+        } catch (error) {
+            console.error('预览图片失败:', error);
+            message.error('预览图片失败，请重试');
+            // 清理资源
+            if (previewUrl) {
+                URL.revokeObjectURL(previewUrl);
+            }
         }
     };
 
