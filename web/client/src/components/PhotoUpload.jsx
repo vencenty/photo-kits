@@ -7,13 +7,12 @@ import ImgCrop from 'antd-img-crop';
 import { uploadToServer } from '../utils/uploadConfig';
 import { useNavigate } from 'react-router-dom';
 import { post } from '../utils/apiService';
+import IMG_PROXY_URL from '../config/commonConfig.js'
 
 const { TextArea } = Input;
 const { Header, Content } = Layout;
 const { confirm } = Modal;
 
-// 图片代理配置
-const IMG_PROXY_URL = 'https://img-proxy.vagrancy.cn/insecure/quality:60/plain/';
 
 // 图片压缩函数
 const compressImage = (file, maxSizeMB = 20, quality = 0.8) => {

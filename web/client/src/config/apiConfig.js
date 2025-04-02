@@ -5,8 +5,12 @@
 
 // API基础URL
  //export const API_BASE_URL = 'https://photo-kits-api.vencenty.cn';
- export const API_BASE_URL = 'https://photo-kits-server.vagrancy.cn';
-//export const API_BASE_URL = 'http://localhost:8484';
+ //export const API_BASE_URL = 'https://photo-kits-server.vagrancy.cn';
+export const API_BASE_URL = 'http://localhost:8484';
+
+// 图片代理URL
+export const IMG_PROXY_URL = 'https://img-proxy.vagrancy.cn/plain/rs:fit:300:300:0/q:60/plain';
+
 // 导出API端点
 export const API_ENDPOINTS = {
   UPLOAD: `${API_BASE_URL}/api/upload`,
@@ -19,5 +23,6 @@ export const API_ENDPOINTS = {
 // 默认导出API配置
 export default {
   BASE_URL: API_BASE_URL,
-  ENDPOINTS: API_ENDPOINTS
+  ENDPOINTS: API_ENDPOINTS,
+  IMG_PROXY_URL: IMG_PROXY_URL
 };
