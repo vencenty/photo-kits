@@ -585,18 +585,6 @@ const PhotoUpload = () => {
                 return false;
             }
             
-            // 检查是否已经存在相同的文件 - 修改这里的检测逻辑
-            const existingFiles = fileList[size] || [];
-            const isDuplicate = existingFiles.some(item => 
-                item.name === file.name && 
-                item.status === 'done' // 只检查已经上传完成的文件
-            );
-            
-            if (isDuplicate) {
-                message.warning(`${file.name} 已经存在，请勿重复上传`);
-                return Upload.LIST_IGNORE; // 忽略这个文件
-            }
-            
             return true;
         },
         customRequest: async ({ file, onSuccess, onError, onProgress }) => {
@@ -618,7 +606,7 @@ const PhotoUpload = () => {
                 // 只有当文件大于20MB时才压缩
                 if (file.size / 1024 / 1024 > 20) {
                     // 显示压缩进度提示
-                    message.loading(`${file.name} 超过20MB，正在压缩...`, 0);
+                    const loadingMessage = message.loading(`${file.name} 超过20MB，正在压缩...`, 0);
                     console.log(`开始压缩大文件: ${file.name}, 大小: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
                     
                     try {
@@ -641,75 +629,69 @@ const PhotoUpload = () => {
                         console.error(`文件压缩失败: ${file.name}`, compressError);
                         message.destroy(); // 关闭加载提示
                         message.error(`压缩 ${file.name} 失败，将使用原始文件`);
+                        // 继续使用原始文件
                     }
                 }
                 
-                // 先处理图片获取预览
-                processedFile = await processImage(fileToUpload, size, fileId);
-                
-                // 使用函数式更新确保获取最新的fileList状态
-                setFileList(prevFileList => {
-                    const newFileList = { ...prevFileList };
-                    if (!newFileList[size]) {
-                        newFileList[size] = [];
-                    }
+                try {
+                    // 先处理图片获取预览
+                    processedFile = await processImage(fileToUpload, size, fileId);
                     
-                    if (newFileList[size].length >= 1000) {
-                        console.warn(`尺寸 ${size} 已达到1000张上限，拒绝上传: ${file.name}`);
-                        message.error('已达到1000张上限！');
-                        onError(new Error('已达到上传上限'));
-                        setUploading(false);
-                        return prevFileList; // 不更新状态
-                    }
-
-                    // 检查是否已经存在相同的文件
-                    const isDuplicate = newFileList[size].some(item => 
-                        item.name === processedFile.name && 
-                        item.status === 'done'
-                    );
+                    // 使用函数式更新确保获取最新的fileList状态
+                    setFileList(prevFileList => {
+                        const newFileList = { ...prevFileList };
+                        if (!newFileList[size]) {
+                            newFileList[size] = [];
+                        }
+                        
+                        if (newFileList[size].length >= 1000) {
+                            console.warn(`尺寸 ${size} 已达到1000张上限，拒绝上传: ${file.name}`);
+                            message.error('已达到1000张上限！');
+                            onError(new Error('已达到上传上限'));
+                            setUploading(false);
+                            return prevFileList; // 不更新状态
+                        }
+                        
+                        // 添加到本地预览列表 - 立即显示本地预览
+                        processedFile.status = 'uploading'; // 设置为上传中状态
+                        processedFile.uploadStatus = 'waiting'; // 设置初始状态为等待上传
+                        if (isCompressed) {
+                            processedFile.isCompressed = true;
+                            processedFile.originalSize = originalSize;
+                            processedFile.compressedSize = compressedSize;
+                        }
+                        newFileList[size] = [...(newFileList[size] || []), processedFile];
+                        return newFileList;
+                    });
                     
-                    if (isDuplicate) {
-                        console.warn(`文件重复上传: ${file.name}, 尺寸: ${size}`);
-                        message.warning(`${file.name} 已经存在，请勿重复上传`);
-                        onError(new Error('文件已存在'));
-                        setUploading(false);
-                        return prevFileList; // 不更新状态
-                    }
+                    // 更新上传统计
+                    setUploadStats(prev => ({
+                        ...prev,
+                        total: prev.total + 1
+                    }));
                     
-                    // 添加到本地预览列表 - 立即显示本地预览
-                    processedFile.status = 'uploading'; // 设置为上传中状态
-                    processedFile.uploadStatus = 'waiting'; // 设置初始状态为等待上传
-                    if (isCompressed) {
-                        processedFile.isCompressed = true;
-                        processedFile.originalSize = originalSize;
-                        processedFile.compressedSize = compressedSize;
-                    }
-                    newFileList[size] = [...(newFileList[size] || []), processedFile];
-                    return newFileList;
-                });
-                
-                // 更新上传统计
-                setUploadStats(prev => ({
-                    ...prev,
-                    total: prev.total + 1
-                }));
-                
-                console.log(`添加到上传队列: ${file.name}, ID: ${fileId}, 当前队列长度: ${uploadQueue.length}`);
-                
-                // 添加到上传队列，而不是立即上传
-                setUploadQueue(prev => [...prev, {
-                    file: fileToUpload, // 使用可能已压缩的文件
-                    size,
-                    fileId,
-                    tempUrl: processedFile.url, // 使用临时URL
-                    onSuccess,
-                    onError,
-                    onProgress,
-                    isCompressed,
-                    originalSize,
-                    compressedSize
-                }]);
-                
+                    console.log(`添加到上传队列: ${file.name}, ID: ${fileId}, 当前队列长度: ${uploadQueue.length}`);
+                    
+                    // 添加到上传队列，而不是立即上传
+                    setUploadQueue(prev => [...prev, {
+                        file: fileToUpload, // 使用可能已压缩的文件
+                        size,
+                        fileId,
+                        tempUrl: processedFile.url, // 使用临时URL
+                        onSuccess,
+                        onError,
+                        onProgress,
+                        isCompressed,
+                        originalSize,
+                        compressedSize
+                    }]);
+                    
+                } catch (processError) {
+                    console.error(`处理图片失败: ${file.name}`, processError);
+                    message.error(`处理图片 ${file.name} 失败`);
+                    onError(processError);
+                    setUploading(false);
+                }
             } catch (error) {
                 console.error(`处理上传请求失败: ${file.name}`, error);
                 message.error(`处理图片 ${file.name} 失败`);
