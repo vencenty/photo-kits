@@ -406,12 +406,12 @@ const PhotoUpload = () => {
                         
                         // 获取上传后的URL
                         const imageUrl = data.url;
-                        // 使用服务端返回的缩略图URL或通过img-proxy代理的URL
-                        const thumbUrl = data.thumbnail_url || (IMG_PROXY_URL ? IMG_PROXY_URL + encodeURIComponent(imageUrl) : imageUrl);
-                        // 使用img-proxy代理的原图URL
+                        // 使用img-proxy代理的原图URL作为缩略图和预览
+                        const thumbUrl = IMG_PROXY_URL ? IMG_PROXY_URL + encodeURIComponent(imageUrl) : imageUrl;
+                        // 使用img-proxy代理的原图URL作为预览
                         const proxyUrl = IMG_PROXY_URL ? IMG_PROXY_URL + encodeURIComponent(imageUrl) : imageUrl;
                         
-                        console.log(`上传成功完成: ${file.name}, URL: ${imageUrl.substring(0, 50)}..., 代理URL: ${proxyUrl.substring(0, 50)}..., 缩略图: ${thumbUrl ? thumbUrl.substring(0, 50) + '...' : '无'}, 队列: ${uploadQueue.length}, 活跃: ${activeUploads}/${MAX_CONCURRENT_UPLOADS}`);
+                        console.log(`上传成功完成: ${file.name}, URL: ${imageUrl.substring(0, 50)}..., 代理URL: ${proxyUrl.substring(0, 50)}..., 队列: ${uploadQueue.length}, 活跃: ${activeUploads}/${MAX_CONCURRENT_UPLOADS}`);
                         
                         // 使用函数式更新确保获取最新的fileList状态
                         setFileList(prevFileList => {
@@ -421,8 +421,7 @@ const PhotoUpload = () => {
                                 updatedFileList[size][fileIndex].status = 'done';
                                 updatedFileList[size][fileIndex].cosUrl = imageUrl; // 保存原始服务器URL用于提交
                                 updatedFileList[size][fileIndex].url = proxyUrl; // 使用代理URL作为预览
-                                updatedFileList[size][fileIndex].thumbUrl = thumbUrl; // 使用代理缩略图URL
-                                updatedFileList[size][fileIndex].thumbnailUrl = data.thumbnail_url ? (IMG_PROXY_URL ? IMG_PROXY_URL + encodeURIComponent(data.thumbnail_url) : data.thumbnail_url) : null; // 专门存储服务端返回的缩略图URL（加代理）
+                                updatedFileList[size][fileIndex].thumbUrl = thumbUrl; // 使用代理URL作为缩略图
                                 updatedFileList[size][fileIndex].isCompressed = isCompressed; // 标记是否被压缩
                                 
                                 if (isCompressed) {
@@ -438,8 +437,7 @@ const PhotoUpload = () => {
                                     name: file.name,
                                     status: 'done',
                                     url: proxyUrl, // 使用代理URL
-                                    thumbUrl: thumbUrl, // 使用代理缩略图URL
-                                    thumbnailUrl: data.thumbnail_url ? (IMG_PROXY_URL ? IMG_PROXY_URL + encodeURIComponent(data.thumbnail_url) : data.thumbnail_url) : null, // 专门存储服务端返回的缩略图URL（加代理）
+                                    thumbUrl: thumbUrl, // 使用代理URL作为缩略图
                                     cosUrl: imageUrl,
                                     isCompressed: isCompressed
                                 });
@@ -453,8 +451,7 @@ const PhotoUpload = () => {
                                     name: file.name,
                                     status: 'done',
                                     url: proxyUrl, // 使用代理URL
-                                    thumbUrl: thumbUrl, // 使用代理缩略图URL
-                                    thumbnailUrl: data.thumbnail_url ? (IMG_PROXY_URL ? IMG_PROXY_URL + encodeURIComponent(data.thumbnail_url) : data.thumbnail_url) : null, // 专门存储服务端返回的缩略图URL（加代理）
+                                    thumbUrl: thumbUrl, // 使用代理URL作为缩略图
                                     cosUrl: imageUrl,
                                     size: size,
                                     isCompressed: isCompressed
@@ -780,7 +777,7 @@ const PhotoUpload = () => {
                                         justifyContent: 'center'
                                     }}>
                                         <img 
-                                            src={file.thumbnailUrl || file.thumbUrl || file.url} 
+                                            src={file.thumbUrl || file.url} 
                                             alt={file.name}
                                             style={{
                                                 maxWidth: '100%',

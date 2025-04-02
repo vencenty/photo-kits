@@ -1,0 +1,1 @@
+export const IMG_PROXY_URL = 'https://img-proxy.vagrancy.cn/plain/rs:fit:300:300:0/q:60/plain';

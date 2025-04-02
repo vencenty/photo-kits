@@ -4,17 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/pkg/errors"
-	"image"
-	"image/jpeg"
-	"image/png"
 	"io"
 	"log"
 	"net/http"
 	"path/filepath"
-	"strings"
 	"time"
 
-	"github.com/disintegration/imaging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/minio/minio-go"
@@ -44,44 +39,6 @@ func generateUniqueFilename(originalFilename string) string {
 	uuid := uuid.New().String()[:8]
 
 	return fmt.Sprintf("%s-%s-%s%s", name, timestamp, uuid, ext)
-}
-
-// 生成缩略图
-func generateThumbnail(src io.Reader, format string, maxWidth, maxHeight int) ([]byte, error) {
-	// 解码图像
-	var img image.Image
-	var err error
-
-	switch strings.ToLower(format) {
-	case "jpeg", "jpg":
-		img, err = jpeg.Decode(src)
-	case "png":
-		img, err = png.Decode(src)
-	default:
-		return nil, fmt.Errorf("不支持的图像格式: %s", format)
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("解码图像失败: %w", err)
-	}
-
-	// 调整图像大小
-	thumbnail := imaging.Resize(img, maxWidth, maxHeight, imaging.Lanczos)
-
-	// 编码为字节数组
-	buf := new(bytes.Buffer)
-	switch strings.ToLower(format) {
-	case "jpeg", "jpg":
-		err = jpeg.Encode(buf, thumbnail, &jpeg.Options{Quality: 85})
-	case "png":
-		err = png.Encode(buf, thumbnail)
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("编码缩略图失败: %w", err)
-	}
-
-	return buf.Bytes(), nil
 }
 
 // UploadHandler 文件上传处理器
@@ -178,46 +135,6 @@ func (h *UploadHandler) UploadFile(c *gin.Context) {
 	// 构建文件URL
 	fileURL := fmt.Sprintf("https://%s/%s/%s", h.config.AliyunMinio.Endpoint, h.config.AliyunMinio.Bucket, objectName)
 
-	// 生成缩略图（如果是图片）
-	var thumbnailURL string
-	if strings.HasPrefix(contentType, "image/") {
-		// 从内容类型获取图像格式
-		format := strings.TrimPrefix(contentType, "image/")
-
-		// 为缩略图生成新的阅读器
-		thumbnailReader := bytes.NewReader(fileContent)
-
-		// 生成缩略图
-		thumbnailData, err := generateThumbnail(thumbnailReader, format, 720, 0)
-		if err != nil {
-			log.Printf("生成缩略图失败: %v", err)
-		} else {
-			// 构建缩略图对象名
-			thumbnailObjectName := "thumb_" + objectName
-
-			// 上传缩略图到MinIO (无需额外设置过期时间，由桶生命周期策略自动控制)
-			_, err = h.minioClient.PutObject(
-				h.config.AliyunMinio.ThumbBucket,
-				thumbnailObjectName,
-				bytes.NewReader(thumbnailData),
-				int64(len(thumbnailData)),
-				minio.PutObjectOptions{
-					ContentType: contentType,
-				},
-			)
-
-			if err != nil {
-				log.Printf("上传缩略图失败: %v", err)
-			} else {
-				thumbnailURL = fmt.Sprintf("https://%s/%s/%s",
-					h.config.AliyunMinio.Endpoint,
-					h.config.AliyunMinio.ThumbBucket,
-					thumbnailObjectName)
-				log.Printf("缩略图上传成功，URL: %s", thumbnailURL)
-			}
-		}
-	}
-
 	// 返回成功信息
 	response := gin.H{
 		"success": true,
@@ -228,13 +145,6 @@ func (h *UploadHandler) UploadFile(c *gin.Context) {
 			"object_name": objectName,
 			"url":         fileURL,
 		},
-	}
-
-	// 如果有缩略图，添加到响应中
-	if thumbnailURL != "" {
-		response["data"].(gin.H)["thumbnail_url"] = thumbnailURL
-	} else {
-		response["data"].(gin.H)["thumbnail_url"] = thumbnailURL
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -257,51 +167,13 @@ func (h *UploadHandler) BatchUploadPhotos(c *gin.Context) {
 	// 打印解析后的请求数据
 	log.Printf("解析后的请求数据: %+v", req)
 
-	// 验证请求数据
-	if req.OrderSn == "" {
-		log.Printf("订单号为空")
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "订单号不能为空",
-		})
-		return
-	}
-
-	// 验证收货人姓名
-	if req.Receiver == "" {
-		log.Printf("收货人姓名为空")
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "收货人姓名不能为空",
-		})
-		return
-	}
-
-	if len(req.Photos) == 0 {
-		log.Printf("照片数据为空")
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "照片数据不能为空",
-		})
-		return
-	}
-
-	// 打印照片数据
-	for i, photo := range req.Photos {
-		log.Printf("照片[%d]: 尺寸=%d, 单位=%s, URL数量=%d",
-			i, photo.Size, photo.Unit, len(photo.URLs))
-		if len(photo.URLs) > 0 {
-			log.Printf("第一个URL: %s", photo.URLs[0])
-		}
-	}
-
 	// 调用服务层处理上传
 	resp, err := h.photoService.BatchUploadPhotos(&req)
 	if err != nil {
 		log.Printf("处理上传失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"message": err.Error(),
+			"message": "处理上传失败: " + err.Error(),
 		})
 		return
 	}
